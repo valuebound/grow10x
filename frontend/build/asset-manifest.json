@@ -1,0 +1,24 @@
+{
+  "files": {
+    "main.css": "/static/css/main.b1ed3bc3.css",
+    "main.js": "/static/js/main.935ef2e9.js",
+    "static/js/787.4742dc8a.chunk.js": "/static/js/787.4742dc8a.chunk.js",
+    "static/media/red-heart.png": "/static/media/red-heart.e8c4d6d476454f461c91.png",
+    "static/media/grow10x-new-removebg.png": "/static/media/grow10x-new-removebg.024bbdcb5f69ea5fb793.png",
+    "static/media/fire.png": "/static/media/fire.65f0c4915fcafa57b410.png",
+    "static/media/bullseye.png": "/static/media/bullseye.7f79ebae51642a9f8025.png",
+    "static/media/CompanyCover.png": "/static/media/CompanyCover.51a63008f1daf0d1f4c1.png",
+    "static/media/black-grow10xhb.jpg": "/static/media/black-grow10xhb.68ef9bb1f0ab9acefeb7.jpg",
+    "static/media/setPasswordImg.svg": "/static/media/setPasswordImg.9b0cd2f4e758a79fe24b52b76787af6c.svg",
+    "static/media/login.svg": "/static/media/login.a7d097e28f6cf104f8336091d0001751.svg",
+    "index.html": "/index.html",
+    "static/media/Template_File.csv": "/static/media/Template_File.19f48f15e31d51eaccd6.csv",
+    "main.b1ed3bc3.css.map": "/static/css/main.b1ed3bc3.css.map",
+    "main.935ef2e9.js.map": "/static/js/main.935ef2e9.js.map",
+    "787.4742dc8a.chunk.js.map": "/static/js/787.4742dc8a.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.b1ed3bc3.css",
+    "static/js/main.935ef2e9.js"
+  ]
+}

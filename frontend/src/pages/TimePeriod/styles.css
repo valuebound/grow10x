@@ -1,0 +1,36 @@
+.CLeftBox {
+  float: left;
+  width: 33%;
+  height: 120px;
+}
+.CMiddleBox {
+  text-align: center;
+  float: left;
+  width: 35%;
+  height: 120px;
+}
+.CRightBox {
+  padding: auto auto;
+  text-align: center;
+  width: auto;
+  height: 120px;
+}
+
+.ELeftBox {
+  float: left;
+  width: 33%;
+  height: 120px;
+}
+.EMiddleBox {
+  text-align: center;
+  float: left;
+  width: 35%;
+  height: 120px;
+}
+.ERightBox {
+  padding: auto auto;
+  text-align: center;
+
+  width: auto;
+  height: 120px;
+}
