@@ -16,6 +16,7 @@ const {
     myDetails,
     createUserWhileImport,
     activateUser,
+    searchByName,
 } = require("./controller");
 const { verifyToken, isAdmin, isActive } = require("../../middleware/authJwt");
 const uploadFile = require("../../middleware/upload");
@@ -29,7 +30,7 @@ router.get("/forgot", resetPassword);
 /**
  * Verify OTP
  */
-router.get("/verifyotp", verifyOtp);
+router.post("/verifyotp", verifyOtp);
 
 /**
  * Fet User List (Self Org)
@@ -37,7 +38,7 @@ router.get("/verifyotp", verifyOtp);
 router.get("/reporting-manager-list",[verifyToken, isActive, isAdmin], getReportingManagerList);
 
 /**
- * Search Feature
+ * Search Feature for inactive or active user with user's okr stats.
  */
 router.get("/searchuser",[verifyToken, isActive], userSearchbyName);
 
@@ -126,5 +127,10 @@ router.post(
   [verifyToken, isActive, isAdmin ,uploadFile.single("file")],
   createUserWhileImport
 );
+
+/**
+ * User search by name (for adding parent OKR)
+ */
+router.post("/search", [verifyToken, isActive], searchByName);
 
 module.exports = router;

@@ -1,5 +1,6 @@
 export const config = {
-    REACT_APP_API_HOST: "http://valuebound.grow10x.org/api",
-    CLIENT_URL: "http://valuebound.grow10x.org",
+    REACT_APP_API_HOST: "",
+    CLIENT_URL: "",
     GENERATE_SOURCEMAP: false,
+    CRYPTO_SECRET: "",
 }

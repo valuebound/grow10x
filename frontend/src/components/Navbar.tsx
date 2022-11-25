@@ -1,51 +1,86 @@
-import React from "react";
+import React, { Dispatch, SetStateAction } from "react";
+import { useNavigate } from "react-router-dom";
 import { Space, Menu, Layout, Dropdown, Avatar, Typography } from "antd";
-import { EyeFilled, LogoutOutlined } from "@ant-design/icons";
+import { Breakpoint } from "antd/lib/_util/responsiveObserve";
+import {
+  EyeFilled,
+  ImportOutlined,
+  LogoutOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  SettingOutlined,
+} from "@ant-design/icons";
 import styled from "styled-components";
 
 import { logOutAsync } from "../pages/Login/loginSlice";
 import { useAppDispatch } from "../redux/hooks";
-import { ROLES, RoleLabel } from "../utils/constants";
-import { useNavigate } from "react-router-dom";
+import { ROLES, RoleLabel, COMPANY_ID, getCompanyId } from "../utils/constants";
+import { ROUTES } from "../utils/routes.enum";
 
 type NavbarProps = {
   user: any;
+  collapsed: boolean;
+  screen: Partial<Record<Breakpoint, boolean>>;
+  setCollapsed: Dispatch<SetStateAction<boolean>>;
 };
 
 const { Header } = Layout;
 
-const Navbar: React.FC<NavbarProps> = ({ user }) => {
+const Navbar: React.FC<NavbarProps> = ({
+  user,
+  collapsed,
+  screen,
+  setCollapsed,
+}) => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const companyId = getCompanyId()?.id || "";
 
   const onClickProfile = () => {
-    navigate(`/profile`);
+    navigate(ROUTES.PROFILE);
   };
 
-  let profileMenuItems: any = [];
+  const onClickSetting = () => {
+    navigate(ROUTES.SETTING);
+  };
+
+  const onClickExitOrg = () => {
+    localStorage.removeItem(COMPANY_ID);
+    window.location.replace(ROUTES.ORGANIZATION);
+  };
+
+  let profileMenuItems: any = [
+    {
+      title: "Setting",
+      icon: <SettingOutlined />,
+      onClick: () => onClickSetting(),
+    },
+    {
+      title: "Logout",
+      icon: <LogoutOutlined />,
+      onClick: () => dispatch(logOutAsync()),
+    },
+  ];
 
   if (user?.role === ROLES.SUPER_ADMIN) {
-    profileMenuItems = [
-      ...profileMenuItems,
-      {
-        title: "Logout",
-        icon: <LogoutOutlined />,
-        onClick: () => dispatch(logOutAsync()),
-      },
-    ];
+    if (companyId.length > 0) {
+      profileMenuItems = [
+        {
+          title: "Exit Org",
+          icon: <ImportOutlined />,
+          onClick: () => onClickExitOrg(),
+        },
+        ...profileMenuItems,
+      ];
+    }
   } else {
     profileMenuItems = [
-      ...profileMenuItems,
       {
         title: "Profile",
         icon: <EyeFilled />,
         onClick: () => onClickProfile(),
       },
-      {
-        title: "Logout",
-        icon: <LogoutOutlined />,
-        onClick: () => dispatch(logOutAsync()),
-      },
+      ...profileMenuItems,
     ];
   }
 
@@ -72,15 +107,28 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
   );
 
   return (
-    <StyledHeader>
-      <LeftMenu></LeftMenu>
+    <StyledHeader screen={screen} style={{}}>
+      <LeftMenu>
+        {screen?.xs &&
+          React.createElement(
+            collapsed ? MenuUnfoldOutlined : MenuFoldOutlined,
+            {
+              className: "trigger",
+              onClick: () => setCollapsed(!collapsed),
+              style: { marginLeft: "20px", fontSize: "20px" },
+            }
+          )}
+      </LeftMenu>
       <RightMenu>
         <Space>
           <ProfileName>
             <Typography.Text strong style={{ height: 20 }}>
               {user?.firstName}
             </Typography.Text>
-            <Typography.Text type="secondary" style={{ height: 15, whiteSpace: "nowrap"}}>
+            <Typography.Text
+              type="secondary"
+              style={{ height: 15, whiteSpace: "nowrap" }}
+            >
               {/* @ts-ignore */}
               {RoleLabel[user?.role]}
             </Typography.Text>
@@ -94,10 +142,17 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
 
 export default Navbar;
 
-const StyledHeader = styled(Header)`
+const StyledHeader = styled(Header)<{
+  screen: Partial<Record<Breakpoint, boolean>>;
+}>`
+  position: ${(props) => (props.screen?.xs ? "sticky" : "initial")};
+  top: 0;
+  width: 100%;
   padding: 0;
   display: flex;
   z-index: 1000;
+  box-shadow: ${(props) =>
+    props.screen?.xs ? "0 -6px 10px 5px rgba(0,0,0,0.5)" : "none"};
 `;
 
 const LeftMenu = styled(Menu)`
@@ -118,6 +173,5 @@ const ProfileName = styled.div`
   display: flex;
   flex-direction: column;
   text-align: right;
-  backgroun-color: red;
   height: 80px;
 `;

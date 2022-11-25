@@ -9,26 +9,36 @@ import {
   Space,
   Row,
   Col,
+  Popover,
 } from "antd";
 import styled from "styled-components";
 
-import { OKRList } from "../components";
-import { OKR_TYPE, ROLES, currentUser } from "../../../utils/constants";
+import { OKRList, Logo } from "../components";
+import {
+  OKR_TYPE,
+  ROLES,
+  currentUser,
+  getCompanyId,
+} from "../../../utils/constants";
 import { updateCompanyAbout, getCompanyAbout, selectOkr } from "../okrSlice";
 import { getAllTimePeriodsAsync } from "../../TimePeriod/timeperiodSlice";
 import { useAppDispatch, useAppSelector } from "../../../redux/hooks";
 import FormBuilder from "../../../components/FormBuilder";
 
 const { TabPane } = Tabs;
+const { Text, Title, Paragraph } = Typography;
 
 type CompanyInfoProps = {};
 
 const CompanyInfo: React.FC<CompanyInfoProps> = () => {
   const [visible, setVisible] = useState(false);
   const [isAbout, setAbout] = useState<boolean>(true);
+  // const [visibleImage, setVisibleImage] = useState<boolean>(false);
   const dispatch = useAppDispatch();
   const { aboutData, status } = useAppSelector(selectOkr);
   const loading = status === "loading";
+  const companyData = getCompanyId();
+  const companyId = companyData?.id?.length > 0;
 
   const showDrawer = () => setVisible(true);
   const onClose = () => setVisible(false);
@@ -65,31 +75,40 @@ const CompanyInfo: React.FC<CompanyInfoProps> = () => {
         >
           <Card.Meta
             avatar={
-              aboutData?.companyLogo ? (
-                <Avatar
-                  size={{ xs: 24, sm: 32, md: 40, lg: 64, xl: 80, xxl: 100 }}
-                  src={require("../../../assets/logo.png")}
-                />
-              ) : (
-                <StyledAvatar
-                  size={{ xs: 24, sm: 32, md: 40, lg: 64, xl: 80, xxl: 100 }}
-                >
-                  {aboutData?.orgName && aboutData?.orgName[0]}
-                </StyledAvatar>
-              )
+              <Popover
+                content={
+                  <Logo logoUrl={aboutData?.logoUrl} logo={aboutData?.logo} />
+                }
+                placement="rightBottom"
+              >
+                {aboutData?.logoUrl ? (
+                  <Avatar
+                    size={{ xs: 24, sm: 32, md: 40, lg: 64, xl: 80, xxl: 100 }}
+                    src={aboutData?.logoUrl}
+                  />
+                ) : (
+                  <StyledAvatar
+                    size={{ xs: 24, sm: 32, md: 40, lg: 64, xl: 80, xxl: 100 }}
+                  >
+                    {aboutData?.orgName && aboutData?.orgName[0]}
+                  </StyledAvatar>
+                )}
+              </Popover>
             }
           />
           <Row>
-            <Col span={2} />
-            <Col span={21}>
-              <Typography.Title level={4}>{aboutData.orgName}</Typography.Title>
+            {/* <Col span={2} /> */}
+            <Col span={22}>
+              <Title level={4}>{aboutData.orgName}</Title>
             </Col>
-            <Col span={1}>
-              {currentUser?.role === ROLES.ADMIN && isAbout && (
-                <Button type="primary" onClick={showDrawer}>
-                  Edit
-                </Button>
-              )}
+            <Col md={2} sm={3} xs={3}>
+              {(currentUser?.role === ROLES.ADMIN ||
+                (currentUser?.role === ROLES.SUPER_ADMIN && companyId)) &&
+                isAbout && (
+                  <Button type="primary" onClick={showDrawer}>
+                    Edit
+                  </Button>
+                )}
             </Col>
           </Row>
         </Card>
@@ -107,14 +126,12 @@ const CompanyInfo: React.FC<CompanyInfoProps> = () => {
                       size="small"
                       src={require("../../../assets/fire.png")}
                     />
-                    <Typography.Text> Company Briefs </Typography.Text>
+                    <Text> Company Briefs </Text>
                   </Space>
                 </>
               }
             >
-              <Typography.Paragraph>
-                {aboutData.companyBrief}
-              </Typography.Paragraph>
+              <Paragraph>{aboutData.companyBrief}</Paragraph>
             </CompanyBriefsCard>
             <VisionCard
               loading={loading}
@@ -125,12 +142,12 @@ const CompanyInfo: React.FC<CompanyInfoProps> = () => {
                       size="small"
                       src={require("../../../assets/bullseye.png")}
                     />
-                    <Typography.Text> Vision </Typography.Text>
+                    <Text> Vision </Text>
                   </Space>
                 </>
               }
             >
-              <Typography.Paragraph>{aboutData.vision}</Typography.Paragraph>
+              <Paragraph>{aboutData.vision}</Paragraph>
             </VisionCard>
             <MissionCard
               loading={loading}
@@ -141,12 +158,12 @@ const CompanyInfo: React.FC<CompanyInfoProps> = () => {
                       size="small"
                       src={require("../../../assets/fire.png")}
                     />
-                    <Typography.Text> Mission </Typography.Text>
+                    <Text> Mission </Text>
                   </Space>
                 </>
               }
             >
-              <Typography.Paragraph>{aboutData.mission}</Typography.Paragraph>
+              <Paragraph>{aboutData.mission}</Paragraph>
             </MissionCard>
             <CoreValuesCard
               loading={loading}
@@ -157,81 +174,80 @@ const CompanyInfo: React.FC<CompanyInfoProps> = () => {
                       size="small"
                       src={require("../../../assets/bullseye.png")}
                     />
-                    <Typography.Text> Core Values </Typography.Text>
+                    <Text> Core Values </Text>
                   </Space>
                 </>
               }
             >
-              <Typography.Paragraph>
-                {aboutData.coreValues}
-              </Typography.Paragraph>
+              <Paragraph>{aboutData.coreValues}</Paragraph>
             </CoreValuesCard>
           </TabPane>
-          <TabPane tab="OKR" key="2">
-            <OKRList okrType={OKR_TYPE.CompanyWide} showHeader />
-          </TabPane>
+          {(currentUser?.role === ROLES.ADMIN ||
+            (currentUser?.role === ROLES.SUPER_ADMIN && companyId)) && (
+            <TabPane tab="OKR" key="2">
+              <OKRList okrType={OKR_TYPE.CompanyWide} showHeader />
+            </TabPane>
+          )}
         </Tabs>
       </Card>
       {visible && (
         <Drawer
           title="Edit Company details"
           placement="right"
-          width={500}
+          contentWrapperStyle={{ width: "100%", maxWidth: "500px" }}
           onClose={onClose}
           visible={visible}
         >
-          <Container>
-            <FormBuilder
-              name="Edit About"
-              width={450}
-              btnLoading={loading}
-              onFinish={onFinish}
-              initialValues={aboutData}
-              submitButtonTitle="Save"
-              formItems={[
-                {
-                  label: "Company Briefs",
-                  name: "companyBrief",
-                  rules: [{ required: false }],
-                  type: {
-                    name: "textarea",
-                    // @ts-ignore
-                    props: { rows: 5 },
-                  },
+          <FormBuilder
+            name="Edit About"
+            width={"100%"}
+            btnLoading={loading}
+            onFinish={onFinish}
+            initialValues={aboutData}
+            submitButtonTitle="Save"
+            formItems={[
+              {
+                label: "Company Briefs",
+                name: "companyBrief",
+                rules: [{ required: false }],
+                type: {
+                  name: "textarea",
+                  // @ts-ignore
+                  props: { rows: 5 },
                 },
-                {
-                  label: "Vision",
-                  name: "vision",
-                  rules: [{ required: false }],
-                  type: {
-                    name: "textarea",
-                    // @ts-ignore
-                    props: { rows: 5 },
-                  },
+              },
+              {
+                label: "Vision",
+                name: "vision",
+                rules: [{ required: false }],
+                type: {
+                  name: "textarea",
+                  // @ts-ignore
+                  props: { rows: 5 },
                 },
-                {
-                  label: "Mission",
-                  name: "mission",
-                  rules: [{ required: false }],
-                  type: {
-                    name: "textarea",
-                    // @ts-ignore
-                    props: { rows: 5 },
-                  },
+              },
+              {
+                label: "Mission",
+                name: "mission",
+                rules: [{ required: false }],
+                type: {
+                  name: "textarea",
+                  // @ts-ignore
+                  props: { rows: 5 },
                 },
-                {
-                  label: "Core Values",
-                  name: "coreValues",
-                  rules: [{ required: false }],
-                  type: {
-                    name: "textarea",
-                    // @ts-ignore
-                    props: { rows: 5 },
-                  },
+              },
+              {
+                label: "Core Values",
+                name: "coreValues",
+                rules: [{ required: false }],
+                type: {
+                  name: "textarea",
+                  // @ts-ignore
+                  props: { rows: 5 },
                 },
-              ]}
-            />
-          </Container>
+              },
+            ]}
+          />
         </Drawer>
       )}
     </>
@@ -239,11 +255,6 @@ const CompanyInfo: React.FC<CompanyInfoProps> = () => {
 };
 
 export default CompanyInfo;
-
-const Container = styled.div`
-  width: 90%;
-  max-width: 400px;
-`;
 
 const CompanyInfoCard = styled.div`
   margin-bottom: 15px;

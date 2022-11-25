@@ -24,12 +24,13 @@ const addUser_JoiSchema = Joi.array().items(addUser_JoiSchemaObj);
 const login_JoiSchema = Joi.object().keys({
   email: Joi.string().email({
     minDomainSegments: 2,
-    tlds: { allow: ["com", "net", "in","org", "xyz"] },
+    tlds: { allow: ["com", "net", "in", "org", "xyz"] },
   }),
-  password: Joi.string().pattern(
-    new RegExp('^[a-zA-Z0-9!@#$&()\\-`_.+,/"]{5,30}$')
-  ),
-  idToken: Joi.string().optional(),
+  password: Joi.string(),
+  // .pattern(
+  //   new RegExp('^[a-zA-Z0-9!@#$&()\\-`_.+,/"]{5,30}$')
+  // ),
+  googleAuthToken: Joi.string().optional(),
   googleid: Joi.string().optional(),
 });
 
@@ -72,10 +73,10 @@ const updateSelfProfile = Joi.object().keys({
   firstName: Joi.string().min(3).max(30).required(),
   surname: Joi.string().min(1).max(30).required(),
   email: Joi.string()
-  .email({
-    minDomainSegments: 2,
-    tlds: { allow: ["com", "net", "in",  "org", "xyz"] },
-  }).required(),
+    .email({
+      minDomainSegments: 2,
+      tlds: { allow: ["com", "net", "in", "org", "xyz"] },
+    }).required(),
   reportingManager: Joi.string(),
   designation: Joi.string(),
   userName: Joi.string(),
@@ -83,6 +84,7 @@ const updateSelfProfile = Joi.object().keys({
   phone: Joi.string().length(10).pattern(/[6-9]{1}[0-9]{9}/),
   dob: Joi.string(),
   about: Joi.string(),
+  location: Joi.string(),
 }).options({ abortEarly: false });
 
 const updateUserProfile_JoiSchema = Joi.object().keys({
@@ -90,24 +92,25 @@ const updateUserProfile_JoiSchema = Joi.object().keys({
   firstName: Joi.string().min(3).max(30).required(),
   surname: Joi.string().min(1).max(30).required(),
   email: Joi.string()
-  .email({
-    minDomainSegments: 2,
-    tlds: { allow: ["com", "net", "in", "org", "xyz"] },
-  }).required(),
+    .email({
+      minDomainSegments: 2,
+      tlds: { allow: ["com", "net", "in", "org", "xyz"] },
+    }).required(),
   userName: Joi.string(),
   designation: Joi.string(),
   reportingManager: Joi.string(),
   gender: Joi.string(),
   phone: Joi.string().length(10).pattern(/[6-9]{1}[0-9]{9}/),
   dob: Joi.string(),
+  role:Joi.string()
 }).options({ abortEarly: false });
 
 module.exports = {
   addUser_JoiSchema,
-  login_JoiSchema ,
+  login_JoiSchema,
   importUserSchema,
   changePasswordSchema,
   setPassword_schema,
-  updateSelfProfile ,
+  updateSelfProfile,
   updateUserProfile_JoiSchema
 };

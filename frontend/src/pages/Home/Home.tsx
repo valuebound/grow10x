@@ -4,7 +4,11 @@ import styled from "styled-components";
 
 import { Stats, Charts } from "./components";
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
-import { selectDashboard, getDashboardStats, getLineChartData } from "./dashboardSlice";
+import {
+  selectDashboard,
+  getDashboardStats,
+  getLineChartData,
+} from "./dashboardSlice";
 import {
   selectTime,
   getAllTimePeriodsAsync,
@@ -44,10 +48,12 @@ const Home: React.FC<HomeProps> = () => {
           company: statisticTypes === "companyStats",
         })
       );
-      dispatch(getLineChartData({
-        quarter: timePeriods.filter((time: any) => time.isCurrent)[0]?._id,
-        company: statisticTypes === "companyStats",
-      }))
+      dispatch(
+        getLineChartData({
+          quarter: timePeriods.filter((time: any) => time.isCurrent)[0]?._id,
+          company: statisticTypes === "companyStats",
+        })
+      );
     }
   }, [timePeriods, dispatch, statisticTypes]);
 
@@ -56,13 +62,13 @@ const Home: React.FC<HomeProps> = () => {
       <PageHeader
         title="Dashboard"
         extra={[
-          <Space align="end" style={{width:"100%"}}>
-          <Segmented
-            options={segmentOpt}
-            value={statisticTypes}
-            onChange={setStatisticTypes}
-          />
-          </Space>
+          <Space align="end" style={{ width: "100%" }}>
+            <Segmented
+              options={segmentOpt}
+              value={statisticTypes}
+              onChange={setStatisticTypes}
+            />
+          </Space>,
         ]}
         style={{ width: "100%" }}
       />
@@ -70,7 +76,7 @@ const Home: React.FC<HomeProps> = () => {
         <Stats data={data} loading={loading} />
       </Col>
       <Col span={24}>
-        <Charts data={data} loading={loading} timePeriods={timePeriods}/>
+        <Charts data={data} loading={loading} timePeriods={timePeriods} />
       </Col>
     </Container>
   );
@@ -83,6 +89,6 @@ const Container = styled(Row)`
   width: 100%;
 
   @media screen and (max-width: 576px) {
-    padding: 5px;
+    padding: 10px;
   }
 `;

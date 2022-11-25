@@ -56,7 +56,7 @@ If you need to update `npm`, you can make it using `npm`! Cool right? After runn
 ---
 #### Code setup & Installation
 
-    $ git clone http://gitlab.valuebound.net/product/okr-group/valuebound-okr.git
+    $ git clone https://github.com/valuebound/grow10x.git
     $ cd valuebound-okr
     $ cd frontend
     $ yarn install

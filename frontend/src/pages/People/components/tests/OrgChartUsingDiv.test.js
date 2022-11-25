@@ -4,7 +4,7 @@ import thunk from "redux-thunk";
 import configureMockStore from "redux-mock-store";
 import { MemoryRouter } from "react-router-dom";
 
-import OrgChartUsingDiv from "../OrgChartUsingDiv";
+import OrgChartUsingDiv from "../OrgChart/components/OrgChartUsingDiv";
 
 describe("Testing OrgChartUsingDiv Compomnent", () => {
   const middlewares = [thunk];

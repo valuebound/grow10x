@@ -1,7 +1,7 @@
 import { useLocation, Navigate, Outlet } from "react-router-dom";
 //todo: This component should be shifted to PrivateRoute
 import { ROUTES } from "../utils/routes.enum";
-import { currentUser, ROLES } from "./constants";
+import { currentUser, getCompanyId, ROLES } from "./constants";
 
 type AuthRoleProps = {
   allowedRoles: any;
@@ -9,6 +9,10 @@ type AuthRoleProps = {
 
 const AuthRole: React.FC<AuthRoleProps> = ({ allowedRoles }) => {
   const location = useLocation();
+  const companyId = getCompanyId()?.id;
+
+  if (companyId.length > 0 && !allowedRoles?.includes(ROLES.SUPER_ADMIN))
+    allowedRoles.push(ROLES.SUPER_ADMIN);
 
   const isSuperAdmin = currentUser?.role === ROLES.SUPER_ADMIN;
 

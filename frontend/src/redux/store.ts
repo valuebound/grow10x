@@ -5,11 +5,12 @@ import timePeriod from "../pages/TimePeriod/timeperiodSlice";
 import okr from "../pages/OKR/okrSlice";
 import organization from "../pages/Organization/organizationSlice";
 import setPassword from "../pages/SetPassword/setPasswordSlice";
-import changePassword from "../pages/ChangePassword/changePasswordSlice";
 import dashboard from "../pages/Home/dashboardSlice";
 import people from "../pages/People/peopleSlice";
 import notification from "../pages/TimePeriod/notificationsSlice";
 import profile from "../pages/Profile/profileSlice";
+import setting from "../pages/Setting/settingSlice";
+import forgotPassword from "../pages/ForgotPassword/forgotPasswordSlice"
 
 export const store = configureStore({
   reducer: {
@@ -20,9 +21,10 @@ export const store = configureStore({
     okr,
     organization,
     setPassword,
-    changePassword,
     people,
     profile,
+    setting,
+    forgotPassword
   },
 });
 

@@ -1,20 +1,19 @@
 const { timePeriod, activityFeed } = require("../../models");
 const Okr = require("./model");
 const { HTTP_CODES, ERROR_MESSAGES, ACTIVITY_STATUS, OKR_TYPES, UNIT_TYPES, KR_OPERATIONS } = require("../../utility/constants");
-const { customResponse } = require("../../utility/helper");
+const { customResponse, getStatsOfOkr } = require("../../utility/helper");
 const moment = require('moment');
 const User = require("../../modules/user/model");
 const { createOkrSchema } = require("./schema");
 const logger = require('../../utility/logger');
 const sanitizer = require("sanitize")();
-const {sum} = require('mathjs');
 const Checkin = require("../../models/checkin.model");
 
 const createOkr = async (req, res) => {
   const userId = req.userId;
   try {
     const user = await User.findById(userId);
-    const orgID = user.organization;
+    const orgID = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const currentTimePeriod = sanitizer.value(req.body.quarter, 'str');
     if (!currentTimePeriod || currentTimePeriod === '' || currentTimePeriod === null){
       const resData = customResponse({
@@ -87,7 +86,7 @@ const createOkr = async (req, res) => {
         /**
          * Validating OKR start and target before saving into db
          */
-        if (krsBody[i].start >= 0 && krsBody[i].start < krsBody[i].target){
+        if (krsBody[i].start >= 0){
           let newkrs = {
             start : krsBody[i].start,
             target: krsBody[i].target,
@@ -98,15 +97,6 @@ const createOkr = async (req, res) => {
             comment: krsBody[i].comment,
           }
           krsBody[i] = newkrs;
-        }
-        else if (krsBody[i].start >= 0 && krsBody[i].start > krsBody[i].target){
-          logger.customLogger.log('error', `start value is greater than target`);
-          const resData = customResponse({
-            code: HTTP_CODES.BAD_REQUEST,
-            message: `start value '${krsBody[i].start}' should not be greater than target value '${krsBody[i].target}'`,
-            err: {}
-          });
-          return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
         }
         else if (krsBody[i].start >= 0 && krsBody[i].start === krsBody[i].target){
           const resData = customResponse({
@@ -119,7 +109,7 @@ const createOkr = async (req, res) => {
         else {
           const resData = customResponse({
             code: HTTP_CODES.BAD_REQUEST,
-            message: `Invalid Request Data'`,
+            message: `Invalid Request Data`,
             err: {}
           });
           return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
@@ -205,7 +195,7 @@ const getMyAllOkrs = async (req, res) => {
     let okrResponseData = [];
     const userId = req.userId;
     const user = await User.findById(userId);
-    const orgID = user.organization;
+    const orgID = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const quarter = sanitizer.value(req.query.quarter, 'str');
     if (!quarter || quarter === ''){
       const resData = customResponse({
@@ -235,7 +225,7 @@ const getMyAllOkrs = async (req, res) => {
       return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
     }
     if(type === OKR_TYPES.INDIVIDUAL){
-      okr = await Okr.find({ owner: owner, type: type, isDeleted: false, quarter: quarter })
+      okr = await Okr.find({ owner: owner, isDeleted: false, quarter: quarter })
       .populate("owner", {
         _id: 1,
         firstName: 1,
@@ -244,8 +234,7 @@ const getMyAllOkrs = async (req, res) => {
         organization:1,
         avatar:1,
       })
-      .populate("parent", { _id: 1, firstName: 1,
-        surname:1, })
+      .populate("parent", { _id: 1, owner:1, objective:1, type:1, quarter:1 })
       .populate("krs.comment.commentedBy", { _id: 1, firstName: 1,
         surname:1, avatar:1 });
       const statsData = await getStatsOfOkr(okr, quarter, orgID);
@@ -266,8 +255,7 @@ const getMyAllOkrs = async (req, res) => {
         manager: 1,
         organization: 1,
       })
-      .populate("parent", { _id: 1, firstName: 1,
-        surname:1, })
+      .populate("parent", { _id: 1, owner:1, objective:1, type:1, quarter:1 })
       .populate("krs.comment.commentedBy", { _id: 1, firstName: 1,
         surname:1, avatar:1});
       if( okr.length > 0){
@@ -331,7 +319,7 @@ const updateOkr = async (req, res) => {
     const _id = sanitizer.value(req.params.okrid, 'str');
     const userId = req.userId;
     const user = await User.findById(userId);
-    const orgID = user.organization;
+    const orgID = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const checkOkrExist = await Okr.findOne({_id: _id, owner: userId, isDeleted:false }).count();
     const checkOKRQuarter = await Okr.findOne({_id: _id, owner: userId, isDeleted:false }).populate('quarter', {isLocked:1});
     if (checkOKRQuarter.quarter.isLocked === true){
@@ -531,7 +519,7 @@ const addNewKrs = async (req, res) => {
         /**
          * Validating OKR start and target before saving into db
          */
-        if (krsBody[i].start >= 0 && krsBody[i].start < krsBody[i].target){
+        if (krsBody[i].start >= 0){
           let newkrs = {
             start : krsBody[i].start,
             target: krsBody[i].target,
@@ -542,15 +530,6 @@ const addNewKrs = async (req, res) => {
             comment: krsBody[i].comment,
           }
           krsBody[i] = newkrs;
-        }
-        else if (krsBody[i].start >= 0 && krsBody[i].start > krsBody[i].target){
-          logger.customLogger.log('error', `start value is greater than target`);
-          const resData = customResponse({
-            code: HTTP_CODES.BAD_REQUEST,
-            message: `start value '${krsBody[i].start}' should not be greater than target value '${krsBody[i].target}'`,
-            err: {}
-          });
-          return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
         }
         else if (krsBody[i].start >= 0 && krsBody[i].start === krsBody[i].target){
           const resData = customResponse({
@@ -563,7 +542,7 @@ const addNewKrs = async (req, res) => {
         else {
           const resData = customResponse({
             code: HTTP_CODES.BAD_REQUEST,
-            message: `Invalid Request Data'`,
+            message: `Invalid Request Data`,
             err: {}
           });
           return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
@@ -655,7 +634,7 @@ const deleteOKR = async (req, res) => {
     const okrId = sanitizer.value(req.params.okrid, 'str');
     const userId = req.userId;
     const user = await User.findById(userId);
-    const orgID = user.organization;
+    const orgID = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const checkOKRQuarter = await Okr.findOne({_id: okrId, owner: userId }).populate('quarter', {_id:1, isLocked:1});
     if (checkOKRQuarter.quarter.isLocked === true){
       const resData = customResponse({
@@ -691,7 +670,22 @@ const deleteOKR = async (req, res) => {
       }
     }
 
-
+    /**
+     * Delete OKR from parent
+     */
+    const getList = await Okr.find({parent: deletedOkr?._id});
+    for (let index = 0; index < getList?.length; index++) {
+      const updateokr = await Okr.findByIdAndUpdate(getList[index],
+        {
+          $pull: {
+            parent: deletedOkr?._id,
+          }
+        },
+        {
+          new: true
+        })
+      
+    }
     const resData = customResponse({
       code: HTTP_CODES.SUCCESS,
       message: `${deletedOkr.objective} Objective is deleted`,
@@ -777,7 +771,7 @@ const getSingleOKr = async (req, res) => {
     const okrId = sanitizer.value(req.params.okrid, 'str');
     const userId = req.userId;
     const user = await User.findById(userId);
-    const orgID = user.organization;
+    const orgID = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const getOKrData = await Okr.find({ _id: okrId, isDeleted: false })
       .populate("owner",
       {
@@ -787,8 +781,7 @@ const getSingleOKr = async (req, res) => {
         manager: 1,
         projectLead: 1,
       })
-      .populate("parent", { _id: 1, firstName: 1,
-        surname:1, })
+      .populate("parent", { _id: 1, owner:1, objective:1, type:1, quarter:1 })
       .populate("krs.comment.commentedBy", { _id: 1, firstName: 1,
         surname:1, avatar:1,
       })
@@ -824,7 +817,7 @@ const checkInAndAddComment = async (req, res) => {
     const krId = sanitizer.value(req.params.krid, 'str');
     const userId = req.userId;
     const user = await User.findById(userId);
-    const orgID = user.organization;
+    const orgID = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const body = req?.body?.comment;
     if (body){
       body.createdAt = moment().format();
@@ -891,8 +884,7 @@ const checkInAndAddComment = async (req, res) => {
         organization:1,
         avatar:1,
       })
-      .populate("parent", { _id: 1, firstName: 1,
-        surname:1, })
+      .populate("parent", { _id: 1, owner:1, objective:1, type:1, quarter:1 })
       .populate("krs.comment.commentedBy", { _id: 1, firstName: 1,
         surname:1, avatar:1 });
       statsData = await getStatsOfOkr(userOkrData, getOldKrData.quarter, orgID);
@@ -911,8 +903,7 @@ const checkInAndAddComment = async (req, res) => {
         organization:1,
         avatar:1,
       })
-      .populate("parent", { _id: 1, firstName: 1,
-        surname:1, })
+      .populate("parent", { _id: 1, owner:1, objective:1, type:1, quarter:1 })
       .populate("krs.comment.commentedBy", { _id: 1, firstName: 1,
         surname:1, avatar:1 });
       if( allCompanyOKRs.length > 0){
@@ -1122,174 +1113,11 @@ const updateComment = async (req, res) => {
   }
 }
 
-async function getStatsOfOkr(okrData, quarter, orgID){
-  try{
-    let total_okr = 0, total_krs = 0;
-    let obj_status_done = 0,obj_status_onTrack= 0, obj_status_behind = 0, obj_status_atRisk = 0;
-    const getQuarterData = await timePeriod.findOne({
-      _id: quarter,
-      organization: orgID,
-      isDeleted: false,
-    },
-    {
-      _id:1,
-      name:1,
-      startDate:1,
-      endDate:1
-    });
-      if ( okrData && okrData.length > 0 ){
-          let current_date, current_duration, end_date, expected_kr, start_date, total_duration;
-          start_date = moment(getQuarterData.startDate).format("YYYY-MM-DD");
-          end_date = moment(getQuarterData.endDate).format("YYYY-MM-DD");
-          current_date = moment().format("YYYY-MM-DD");
-          total_duration = moment(end_date).diff(moment(start_date), 'days');
-
-          current_duration = moment(current_date).diff(moment(start_date), 'days');
-          expected_kr = current_duration / total_duration * 100;
-          expected_kr = Math.round(expected_kr);
-
-          function get_status(current, expected) {
-              let v;
-              if (current === 100){
-                  return "done"
-              }
-              else if (expected <= current) {
-
-                  return "onTrack";
-              } else {
-                  if (expected > current) {
-                  v = expected - current;
-
-                  if (v > 15) {
-                      return "atRisk";
-                  } else {
-                      return "behind";
-                  }
-                  }
-              }
-          }
-
-          function get_kr_status(current_value, start_value, target_value) {
-              let current_kr, status;
-              current_kr = ((current_value - start_value) / (target_value - start_value)) * 100;
-              current_kr = Math.round(current_kr);
-              status = get_status(current_kr, expected_kr);
-              return [status, current_kr];
-          }
-
-          function get_objective_status(data) {
-              let cur_obj, new_data, status;
-              new_data = [];
-              let kr_data=[]
-              for (let j=0; j<data.length; j++){
-                  let data1 = get_kr_status(data[j].currentValue, data[j].start, data[j].target);
-                  new_data.push(data1[1]);
-                  kr_data.push({
-                    krsId : data[j]._id.toString(),
-                    keyResult : data[j].keyResult,
-                    krProgress : data1[1],
-                    status : data1[0] ? data1[0] : '',
-                    start: data[j].start,
-                    currentValue: data[j].currentValue,
-                    target: data[j].target,
-                    isBoolean: data[j].isBoolean,
-                    unit: data[j].unit,
-                    krComments: data[j].comment,
-                  })
-                total_krs = total_krs + 1;
-              }
-              cur_obj = sum(new_data) / new_data.length;
-              cur_obj = Math.round(cur_obj);
-              status = get_status(cur_obj, expected_kr);
-              if (status === "done"){
-                obj_status_done = obj_status_done + 1;
-              }
-              else if (status === "onTrack"){
-                obj_status_onTrack = obj_status_onTrack + 1;
-              }
-              else if (status === "atRisk"){
-                obj_status_atRisk = obj_status_atRisk + 1;
-              }
-              else if (status === "behind"){
-                obj_status_behind = obj_status_behind + 1;
-              }
-              return [cur_obj, status, kr_data];
-          }
-
-          function get_overall_status(data) {
-              let cur_overall, new_data, status;
-              let OBJ_ARRAY = [];
-              new_data = [];
-              for (let i = 0; i<data.length; i++) {
-                  let obj_data = get_objective_status(data[i].krs);
-                  let POST_DATA = {
-                      okrObjectiveId : data[i]._id.toString(),
-                      okrObjective : data[i].objective,
-                      okrType: data[i].type,
-                      krs : obj_data[2],
-                      okrProgress: obj_data[0],
-                      okrStatus: obj_data[1] ? obj_data[1] : '',
-                      okrOwner: data[i].owner,
-                      quarter: data[i].quarter,
-                      okrCreatedAt: data[i].createdAt,
-                      okrUpdatedAt: data[i].updatedAt,
-                  }
-                  OBJ_ARRAY.push(POST_DATA);
-
-                  new_data.push(obj_data[0]);
-                  total_okr = total_okr + 1;
-              }
-              cur_overall = sum(new_data) / new_data.length;
-              cur_overall = Math.round(cur_overall);
-              status = get_status(cur_overall, expected_kr);
-              let res = JSON.stringify({
-                totalObjective: total_okr,
-                objectiveDone: obj_status_done,
-                objectiveAtRisk: obj_status_atRisk,
-                objectiveBehind: obj_status_behind,
-                objectiveOnTrack: obj_status_onTrack,
-                totalKrs : total_krs,
-                overallProgress : cur_overall,
-                overallStatus : status ? status : '',
-                okrs : OBJ_ARRAY
-              })
-              return res;
-          }
-
-          const newData = get_overall_status(okrData);
-           let res1 = JSON.parse(newData);
-          logger.customLogger.log('info', `Success with okr's data`);
-          return res1;
-
-      }
-      else if (okrData.length === 0){
-        logger.customLogger.log('info', `Success with no okr's`);
-        let res = {
-          totalObjective: 0,
-          objectiveDone: 0,
-          objectiveAtRisk: 0,
-          objectiveBehind: 0,
-          objectiveOnTrack: 0,
-          totalKrs : 0,
-          overallProgress : 0,
-          overallStatus : "",
-          okrs : []
-        }
-        return res;
-      }
-
-  }
-  catch(error) {
-    logger.customLogger.log('info', `Error - ${error}`);
-  }
-}
-
 const addComment = async(req, res) => {
   try {
     const krId = sanitizer.value(req.params.krid, 'str');
     const userId = req.userId;
     const body = req?.body?.comment;
-    console.log(body);
     if (!body || !body.text) {
       const resData = customResponse({ 
         code : HTTP_CODES.BAD_REQUEST, 
@@ -1419,7 +1247,7 @@ const checkInCompanySummary = async( req, res) => {
     }
     const userId = req.userId;
     const user = await User.findById(userId);
-    const orgID = user.organization;
+    const orgID = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const getcheckinSummary = await Checkin.findOne(
       {
         org: orgID,
@@ -1624,6 +1452,70 @@ const updateCheckinCompanyOKR = async (userId, quarterId, orgID) => {
   }
 }
 
+const searchOkrByUser = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const user = await User.findById(userId);
+    const orgID = req?.query?.orgid ? req?.query?.orgid : user.organization;
+    const quarter = sanitizer.value(req.body.quarter, 'str');
+    const id = sanitizer.value(req.body.userId, 'str');
+    const type = sanitizer.value(req.body.type, 'str');
+    let getOkrsOfUsers;
+    
+    if (id){
+      getOkrsOfUsers = await Okr.find(
+      { owner: id, quarter: quarter, isDeleted:false, type: type},
+      {
+        _id:1,
+        objective:1,
+        owner:1,
+      }).populate("owner", { _id:1, firstName:1, surname:1, avatar:1 });
+    }
+    else if (id === "" && (type === OKR_TYPES.COMPANY ||  type === OKR_TYPES.INDIVIDUAL || type !== "")) {
+      getOkrsOfUsers = await Okr.find(
+      { quarter: quarter, isDeleted:false, type: type},
+      {
+        _id:1,
+        objective:1,
+        owner:1,
+      }).populate("owner", { _id:1, firstName:1, surname:1, avatar:1 });
+    } else if (id === "" && (type !== OKR_TYPES.COMPANY ||  type !== OKR_TYPES.INDIVIDUAL || type === "")) {
+      getOkrsOfUsers = await Okr.find(
+      { quarter: quarter, isDeleted:false},
+      {
+        _id:1,
+        objective:1,
+        owner:1,
+      }).populate("owner", { _id:1, firstName:1, surname:1, avatar:1 });
+    }
+    
+    const resData = customResponse({
+      code : HTTP_CODES.SUCCESS,
+      message: `Successfully Fetched the User's Objectives`,
+      data: getOkrsOfUsers,
+    });
+    return res.status(HTTP_CODES.SUCCESS).send(resData);
+  } catch (error) {
+    logger.customLogger.log('error', error);
+    if (error.path === 'quarter' && error.kind === 'ObjectId'){
+      const resData = customResponse({
+        code : HTTP_CODES.BAD_REQUEST,
+        message: `Invalid QuarterID Provided`,
+        err: {}
+      });
+      return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+    }
+    else {
+      const resData = customResponse({
+        code : HTTP_CODES.BAD_REQUEST,
+        message: `Failed to fetch User's Objectives`,
+        err: {}
+      });
+      return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+    }
+  }
+}
+
 module.exports = {
   createOkr,
   getMyAllOkrs,
@@ -1634,8 +1526,8 @@ module.exports = {
   getSingleOKr,
   checkInAndAddComment,
   updateComment,
-  getStatsOfOkr,
   addComment,
   checkInSummary,
   checkInCompanySummary,
+  searchOkrByUser,
 };

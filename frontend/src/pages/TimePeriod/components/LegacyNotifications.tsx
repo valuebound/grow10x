@@ -17,7 +17,6 @@ import styled from "styled-components";
 
 import "../styles.css";
 
-
 type NotificationsProps = {
   title: any;
   subtitle: any;
@@ -37,7 +36,6 @@ const Notifications: React.FC<NotificationsProps> = ({
   showCheckBox,
   loading = false,
 }) => {
-
   const weekdays = [
     { label: "Sunday", value: "SUNDAY" },
     { label: "Monday", value: "MONDAY" },
@@ -48,7 +46,7 @@ const Notifications: React.FC<NotificationsProps> = ({
     { label: "Saturday", value: "SATURDAY" },
   ];
 
-  const format = "HH:mm"
+  const format = "HH:mm";
 
   return (
     <Container>
@@ -68,23 +66,13 @@ const Notifications: React.FC<NotificationsProps> = ({
           </Col>
         </Row>
         <StyledRow justify="center">
-          <StyledCol span={12}>
+          <StyledCol span={12} xs={24} xl={8}>
             <Typography.Text strong>ON</Typography.Text>
-          </StyledCol>
-          <StyledCol span={6}>
-            <Typography.Text strong>AT</Typography.Text>
-          </StyledCol>
-          <StyledCol span={6}>
-            <Typography.Text strong>TIMEZONE</Typography.Text>
-          </StyledCol>
-        </StyledRow>
-        <StyledRow align="middle">
-          <StyledCol span={12}>
             <Space direction="vertical">
               <Card>
                 <Form.Item name="day">
                   <Radio.Group>
-                    <Row gutter={[16, 12]}>
+                    <Row gutter={[16, 12]} justify="center">
                       {weekdays.map((weekday) => (
                         <Col key={weekday.label} span={6}>
                           <Radio.Button value={weekday.value}>
@@ -98,24 +86,31 @@ const Notifications: React.FC<NotificationsProps> = ({
               </Card>
             </Space>
           </StyledCol>
-          <StyledCol span={6}>
+
+          <StyledCol span={6} xs={24} xl={8}>
+            <Typography.Text strong>AT</Typography.Text>
+            <br />
             <Space direction="vertical">
               <Form.Item name="time">
                 <TimePicker format={format} />
               </Form.Item>
             </Space>
           </StyledCol>
-          <StyledCol span={6}>
-          <Card>
-            <Typography.Paragraph style={{ textAlign: "center" }}>
-              {initialValues.timeZone}
-            </Typography.Paragraph></Card>
+
+          <StyledCol span={6} xs={24} xl={8}>
+            <Typography.Text strong>TIMEZONE</Typography.Text>
+            <Card>
+              <Typography.Paragraph style={{ textAlign: "center" }}>
+                {initialValues.timeZone}
+              </Typography.Paragraph>
+            </Card>
           </StyledCol>
         </StyledRow>
+        <StyledRow align="middle"></StyledRow>
         <StyledRow>
           <Space direction="horizontal" align="baseline" size={50}>
-              {showCheckBox && (
-            <Space direction="horizontal" align="baseline">
+            {showCheckBox && (
+              <Space direction="horizontal" align="baseline">
                 <Form.Item name="Check">
                   <Checkbox />
                   {"Do not include the OKRs updated within the last "}
@@ -132,8 +127,8 @@ const Notifications: React.FC<NotificationsProps> = ({
                     {" day"}
                   </Form.Item>
                 </Form.Item>
-            </Space>
-              )}
+              </Space>
+            )}
             <Button
               type="primary"
               htmlType="submit"

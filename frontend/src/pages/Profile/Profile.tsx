@@ -21,6 +21,9 @@ import {
   WalletOutlined,
 } from "@ant-design/icons";
 
+import LocationIcon from "../../assets/location_on_icon.svg";
+// import LocationIcon from "../../assets/location_on_icon.png";
+
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
 import { getMyProfile, selectProfile, updateSelfProfile } from "./profileSlice";
 import Loading from "../../components/Loading";
@@ -39,6 +42,8 @@ const Profile: React.FC<ProfileProps> = () => {
   const [editMode, setEditMode] = useState(true);
   const [disableButton, setDisableButton] = useState(true);
 
+  const locationData = ["New Delhi", "Mumbai", "Kolkata", "Chennai"];
+
   const dateFormat = "YYYY-MM-DD";
 
   const onEditModeChange = (checked: boolean) => {
@@ -52,6 +57,7 @@ const Profile: React.FC<ProfileProps> = () => {
       allValues?.userName !== data?.userName ||
       allValues?.email !== data?.email ||
       allValues?.phone !== data?.phone ||
+      allValues?.location !== (data?.location || "") ||
       allValues?.gender !== data?.gender ||
       JSON.stringify(allValues?.dob) !== JSON.stringify(data?.dob) ||
       allValues?.designation !== data?.designation
@@ -127,6 +133,7 @@ const Profile: React.FC<ProfileProps> = () => {
                 reportingManager: `${data?.reportingManager?.firstName || ""} ${
                   data?.reportingManager?.surname || ""
                 }`,
+                location: data?.location,
               }}
               onValuesChange={(changedValues, allValues) =>
                 onValuesChange(changedValues, allValues)
@@ -199,6 +206,13 @@ const Profile: React.FC<ProfileProps> = () => {
                       prefix={<PhoneOutlined />}
                     />
                   </Item>
+                  <Item label="Location" name="location">
+                    <Input
+                      disabled={editMode}
+                      allowClear
+                      prefix={<img src={LocationIcon} width={14} height={14} />}
+                    />
+                  </Item>
                 </StyledCol>
                 <StyledCol xs={{ span: 24 }} md={{ span: 12 }}>
                   <Item
@@ -242,7 +256,18 @@ const Profile: React.FC<ProfileProps> = () => {
                       </Item>
                     </Col>
                   </Row>
-                  <Item label="Designation" name="designation">
+                  <Item
+                    label="Designation"
+                    name="designation"
+                    rules={[
+                      {
+                        min: 2,
+                        max: 30,
+                        message:
+                          "Designation must be between 2 and 30 characters",
+                      },
+                    ]}
+                  >
                     <Input
                       disabled={data?.role?.role === "USER" || editMode}
                       prefix={<WalletOutlined />}

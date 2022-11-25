@@ -1,14 +1,16 @@
-import React, { useEffect } from "react";
+import React, { useContext, useEffect } from "react";
 import styled from "styled-components";
 import { Form, Space, Typography, Input, Button } from "antd";
 import { LockOutlined } from "@ant-design/icons";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import FormBuilder from "../../components/FormBuilder";
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
 import { setPassword, setPasswordAsync } from "./setPasswordSlice";
 import setPasswordImg from "../../assets/setPasswordImg.svg";
 import { ROUTES } from "../../utils/routes.enum";
+import { ChangePasswordForm } from "./components";
+import AuthContext from "../../utils/AuthContext";
 
 type ChangePasswordProps = {};
 
@@ -16,23 +18,18 @@ const SetPassword: React.FC<ChangePasswordProps> = () => {
   const [form] = Form.useForm();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { authenticated } = useContext(AuthContext);
 
   const { status, passwordChanged } = useAppSelector(setPassword);
   let { id } = useParams();
 
   const loading = status === "loading";
 
-  const layout = {
-    labelCol: { span: 16 },
-    wrapperCol: { span: 24 },
-  };
-  const tailLayout = {
-    wrapperCol: { offset: 0, span: 24 },
-  };
-
   useEffect(() => {
     if (passwordChanged) {
-      navigate(ROUTES.HOME, { replace: true });
+      authenticated
+        ? navigate(`${ROUTES.HOME}`, { replace: true })
+        : navigate(`/${ROUTES.LOGIN}`, { replace: true });
     }
   }, [passwordChanged, navigate]);
 
@@ -67,65 +64,7 @@ const SetPassword: React.FC<ChangePasswordProps> = () => {
       </LeftHalf>
       <RightHalf data-testid="setPassword-right-half">
         <FormContainer data-testid="setPassword-form-container">
-          <Form
-            {...layout}
-            form={form}
-            name="Set Password"
-            layout="vertical"
-            style={{ width: "100%" }}
-            onFinish={onSubmit}
-            //btnLoading={loading}
-            data-testid="setPassword-form"
-          >
-            <Form.Item
-              name="password"
-              label="New Password"
-              rules={[
-                {
-                  required: true,
-                  message: "Please input your password!",
-                },
-              ]}
-              data-testid="setPassword-form-item-password"
-            >
-              <Input.Password data-testid="setPassword-password-input" />
-            </Form.Item>
-
-            <Form.Item
-              name="confirmPassword"
-              label="Confirm Password"
-              dependencies={["password"]}
-              rules={[
-                {
-                  required: true,
-                  message: "Please confirm your password!",
-                },
-                ({ getFieldValue }) => ({
-                  validator(_, value) {
-                    if (!value || getFieldValue("password") === value) {
-                      return Promise.resolve();
-                    }
-                    return Promise.reject(
-                      new Error("The passwords you entered do not match!")
-                    );
-                  },
-                }),
-              ]}
-              data-testid="setPassword-form-item-confirmPass"
-            >
-              <Input.Password data-testid="setPassword-confirmPass-input" />
-            </Form.Item>
-            <Form.Item {...tailLayout} data-testid="setPassword-form-item-button">
-              <Button
-                type="primary"
-                htmlType="submit"
-                block={true}
-                data-testid="setPassword-submit-btn"
-              >
-                Set Password
-              </Button>
-            </Form.Item>
-          </Form>
+          <ChangePasswordForm form={form} onSubmit={onSubmit} />
         </FormContainer>
       </RightHalf>
     </Container>

@@ -14,8 +14,8 @@ const Stats: React.FC<StatsProps> = ({ data, loading }) => {
   };
 
   return (
-    <Row justify="space-around" wrap gutter={[0, 16]}>
-      <Col sm={10} xs={24} lg={5}>
+    <Row justify="space-around" wrap gutter={[4, 16]}>
+      <Col sm={10} xs={12} lg={5}>
         <Card loading={loading}>
           <Statistic
             title="Total Objectives"
@@ -24,7 +24,7 @@ const Stats: React.FC<StatsProps> = ({ data, loading }) => {
           />
         </Card>
       </Col>
-      <Col sm={10} xs={24} lg={5}>
+      <Col sm={10} xs={12} lg={5}>
         <Card loading={loading}>
           <Statistic
             title="Total Key results"
@@ -33,7 +33,7 @@ const Stats: React.FC<StatsProps> = ({ data, loading }) => {
           />
         </Card>
       </Col>
-      <Col sm={10} xs={24} lg={5}>
+      <Col sm={10} xs={12} lg={5}>
         <Card loading={loading}>
           <Statistic
             title="Overall Progress"
@@ -44,7 +44,7 @@ const Stats: React.FC<StatsProps> = ({ data, loading }) => {
           />
         </Card>
       </Col>
-      <Col sm={10} xs={24} lg={5}>
+      <Col sm={10} xs={12} lg={5}>
         <Card loading={loading}>
           <Statistic
             title="Overall Status"

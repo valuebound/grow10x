@@ -16,14 +16,23 @@ import {
   Typography,
   Col,
   Row,
+  Popover,
+  List,
+  Divider,
 } from "antd";
-import { debounce, startCase, toLower } from "lodash";
+import { debounce, startCase } from "lodash";
 import styled from "styled-components";
 import {
+  CheckCircleTwoTone,
   DownloadOutlined,
   EditFilled,
+  MailOutlined,
+  MobileOutlined,
   MoreOutlined,
+  SearchOutlined,
   UserDeleteOutlined,
+  UserOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
 
 import { getPeople, selectPeople, searchUser } from "./peopleSlice";
@@ -35,11 +44,11 @@ import {
   UpdateMember,
   UploadMembers,
   DeleteMember,
-  OrgChartUsingDiv,
+  OrgChart,
 } from "./components";
 import {
   currentUser,
-  getProgressColorByStatus,
+  getCompanyId,
   getProgressColorPro,
   getStatusColor,
   getStatusColorPro,
@@ -47,18 +56,23 @@ import {
   USER_KEY_CONSTANT,
 } from "../../utils/constants";
 import ActivateMember from "./components/ActivateMember";
+import { CustomizedRole, PopoverContent, StatusEmojis } from "../../components";
+import LocationIcon from "../../assets/location_on_icon.svg";
 
 type PeopleProps = {};
 
 const { TabPane } = Tabs;
 const { Option } = Select;
-const { Text, Link } = Typography;
+const { Title, Text, Link, Paragraph } = Typography;
 
 const People: React.FC<PeopleProps> = () => {
   const dispatch = useAppDispatch();
   const { data, status } = useAppSelector(selectPeople);
   const loading = status === "loading";
-  const isAdmin = currentUser?.role === ROLES.ADMIN && currentUser?.isAdmin;
+  const companyId = getCompanyId()?.id?.length > 0;
+  const isAdmin =
+    currentUser?.role === ROLES.ADMIN ||
+    (currentUser?.role === ROLES.SUPER_ADMIN && companyId);
 
   const [openMemberForm, setOpenMemberForm] = useState<boolean>(false);
   const [updateMember, setUpdateMember] = useState<boolean>(false);
@@ -90,6 +104,10 @@ const People: React.FC<PeopleProps> = () => {
   );
 
   const onSearchChange = (e: any) => {
+    if (e?.target?.value?.length > 2 && page != 1) {
+      setPage(1);
+      setPaginationSize(10);
+    }
     setSearchInput(e.target.value);
   };
 
@@ -103,6 +121,7 @@ const People: React.FC<PeopleProps> = () => {
     setPaginationSize(10);
     setUserType(value);
   };
+
   let menuItems: any = [
     // {
     //   title: "Delete",
@@ -145,52 +164,6 @@ const People: React.FC<PeopleProps> = () => {
     ];
   }
 
-  const statusEmojis = (overallStatus: any) => {
-    return overallStatus === "onTrack" ? (
-      <span style={{ color: "transparent", textShadow: "0 0 0 #1890ff" }}>
-        👉{" "}
-      </span>
-    ) : overallStatus === "atRisk" ? (
-      <span style={{ color: "transparent", textShadow: "0 0 0 #ff4d4f" }}>
-        👉{" "}
-      </span>
-    ) : overallStatus === "behind" ? (
-      <span style={{ color: "transparent", textShadow: "0 0 0 #faad14" }}>
-        👉{" "}
-      </span>
-    ) : overallStatus === "done" ? (
-      <span style={{ color: "transparent", textShadow: "0 0 0 #52c41a" }}>
-        👉{" "}
-      </span>
-    ) : (
-      <span style={{ color: "transparent", textShadow: "0 0 0 #bfbfbf" }}>
-        👉{" "}
-      </span>
-    );
-  };
-
-  const customizedRole = (role: any) => {
-    switch (role) {
-      case "ADMIN":
-        return (
-          <Text style={{ color: "#52c41a" }}>{startCase(toLower(role))}</Text>
-        );
-      case "USER":
-        return (
-          <Text style={{ color: "#8c8c8c" }}>{startCase(toLower(role))}</Text>
-        );
-
-      /* to be implemented later on */
-      case "MANAGER":
-        return (
-          <Text style={{ color: "#faad14" }}>{startCase(toLower(role))}</Text>
-        );
-      case "HR":
-        return (
-          <Text style={{ color: "#030852" }}>{startCase(toLower(role))}</Text>
-        );
-    }
-  };
   let columns = [
     {
       title: "#",
@@ -204,14 +177,28 @@ const People: React.FC<PeopleProps> = () => {
       key: "firstName",
       render: (_: any, record: any) => (
         <Space>
-          <Link onClick={showUserOkrs(record)}>
+          {/* <Link onClick={showUserOkrs(record)}> */}
+          <Popover
+            content={
+              <PopoverContent
+                avatar={record?.avatar || ""}
+                firstName={record?.firstName || ""}
+                surname={record?.surname || ""}
+                email={record?.email || ""}
+                designation={""}
+                phone={record?.phone || ""}
+                location={record?.location || ""}
+              />
+            }
+          >
             <Avatar
               alt={`${record?.firstName}${record?.surname}`}
               size="large"
               src={record?.avatar}
               onError={() => false}
             />
-          </Link>
+          </Popover>
+          {/* </Link> */}
           <Space size={1} direction="vertical">
             <Text>{`${record?.firstName} ${record?.surname}`}</Text>
             <Text type="secondary">{record?.email}</Text>
@@ -232,8 +219,21 @@ const People: React.FC<PeopleProps> = () => {
         <>
           {record?.reportingManager ? (
             <Space size="small">
-              <Tooltip
+              {/* <Tooltip
                 title={`${record?.reportingManager?.firstName} ${record?.reportingManager?.surname}`}
+              > */}
+              <Popover
+                content={
+                  <PopoverContent
+                    avatar={record?.reportingManager?.avatar || ""}
+                    firstName={record?.reportingManager?.firstName || ""}
+                    surname={record?.reportingManager?.surname || ""}
+                    email={record?.reportingManager?.email || ""}
+                    designation={record?.reportingManager?.designation || ""}
+                    phone={record?.reportingManager?.phone || ""}
+                    location={record?.reportingManager?.location || ""}
+                  />
+                }
               >
                 <Link onClick={showUserOkrs(record?.reportingManager)}>
                   <Avatar
@@ -243,7 +243,8 @@ const People: React.FC<PeopleProps> = () => {
                     onError={() => false}
                   />
                 </Link>
-              </Tooltip>
+              </Popover>
+              {/* </Tooltip> */}
             </Space>
           ) : (
             <></>
@@ -266,7 +267,8 @@ const People: React.FC<PeopleProps> = () => {
                 color: getStatusColorPro(record?.okrStats?.overallStatus),
               }}
             >
-              {statusEmojis(record?.okrStats?.overallStatus)}
+              {/* {statusEmojis(record?.okrStats?.overallStatus)} */}
+              <StatusEmojis overallStatus={record?.okrStats?.overallStatus} />
               {startCase(
                 `${record?.okrStats?.overallStatus || "Not Started!"}`
               )}
@@ -285,7 +287,7 @@ const People: React.FC<PeopleProps> = () => {
       title: "Access Level",
       dataIndex: "role",
       key: "role",
-      render: (record: any) => <span>{customizedRole(record?.role)}</span>,
+      render: (record: any) => <CustomizedRole role={record?.role} />,
     },
   ];
 
@@ -295,10 +297,9 @@ const People: React.FC<PeopleProps> = () => {
         <Space direction="vertical" size={0}>
           <SearchInput
             placeholder="Type name to search"
-            onSearch={onSearch}
             onChange={onSearchChange}
             allowClear
-            enterButton
+            prefix={<SearchOutlined />}
           />
           <Text italic type="warning" ellipsis style={{ fontSize: "10px" }}>
             (At least 3 characters are required to search)
@@ -395,6 +396,219 @@ const People: React.FC<PeopleProps> = () => {
     );
   };
 
+  const profileList = [
+    { title: "phone", icon: <MobileOutlined /> },
+    {
+      title: "location",
+      icon: <img src={LocationIcon} width={14} height={14} />,
+    },
+    {
+      title: "reportingManager",
+      icon: <UserOutlined />,
+    },
+  ];
+
+  const okrList = [
+    { title: "totalObjective", color: "orange" },
+    { title: "totalKrs", color: "orange" },
+    { title: "objectiveAtRisk", color: "red" },
+    { title: "objectiveBehind", color: "yellow" },
+    { title: "objectiveDone", color: "green" },
+    { title: "objectiveOnTrack", color: "orange" },
+  ];
+
+  const Profile = ({ record }: any) => (
+    <Row gutter={[16, 16]}>
+      <Col span={16}>
+        <List
+          header={
+            <Row>
+              <Col span={5}>
+                <Avatar
+                  alt={`${record?.firstName}${record?.surname}`}
+                  size={75}
+                  src={record?.avatar}
+                  onError={() => false}
+                />
+              </Col>
+              <Col span={19}>
+                <Title
+                  level={4}
+                >{`${record?.firstName} ${record?.surname}`}</Title>
+                <Space align="start" style={{ width: "100%" }}>
+                  <MailOutlined />
+                  <Text>
+                    {record?.email || (
+                      <Text italic disabled>
+                        Not Updated
+                      </Text>
+                    )}
+                  </Text>
+                </Space>
+                <Space align="start" style={{ width: "100%" }}>
+                  <WalletOutlined />
+                  <Text>
+                    {record?.designation || (
+                      <Text italic disabled>
+                        Not Updated
+                      </Text>
+                    )}
+                  </Text>
+                </Space>
+              </Col>
+            </Row>
+          }
+          size="small"
+          bordered
+          dataSource={profileList}
+          renderItem={(item) => (
+            <List.Item>
+              {item.title === "reportingManager" ? (
+                <Row style={{ width: "100%" }}>
+                  <Col span={8}>
+                    <Space align="start" style={{ width: "100%" }}>
+                      {item.icon}
+                      <Title level={5}>{startCase(item.title)}</Title>
+                    </Space>
+                  </Col>
+                  <Col span={16}>
+                    {record?.hasOwnProperty(item.title) ? (
+                      <Row>
+                        <Col span={5}>
+                          <Avatar
+                            alt={`${record[item.title]?.firstName}${
+                              record[item.title]?.surname
+                            }`}
+                            size={50}
+                            src={record[item.title]?.avatar}
+                            onError={() => false}
+                          />
+                        </Col>
+                        <Col span={19}>
+                          <Title level={4}>{`${record[item.title]?.firstName} ${
+                            record[item.title]?.surname
+                          }`}</Title>
+                          <Space align="start" style={{ width: "100%" }}>
+                            <MailOutlined />
+                            <Text>
+                              {record[item.title]?.email || (
+                                <Text italic disabled>
+                                  Not Updated
+                                </Text>
+                              )}
+                            </Text>
+                          </Space>
+                          <Space align="start" style={{ width: "100%" }}>
+                            <WalletOutlined />
+                            <Text>
+                              {record[item.title]?.designation || (
+                                <Text italic disabled>
+                                  Not Updated
+                                </Text>
+                              )}
+                            </Text>
+                          </Space>
+                          <Space align="start" style={{ width: "100%" }}>
+                            <MobileOutlined />
+                            <Text>
+                              {record[item.title]?.phone || (
+                                <Text italic disabled>
+                                  Not Updated
+                                </Text>
+                              )}
+                            </Text>
+                          </Space>
+                        </Col>
+                      </Row>
+                    ) : (
+                      <Text italic disabled>
+                        NA
+                      </Text>
+                    )}
+                  </Col>
+                </Row>
+              ) : (
+                <Row style={{ width: "100%" }}>
+                  <Col span={4}>
+                    <Space align="start" style={{ width: "100%" }}>
+                      {item.icon}
+                      <Title level={5}>{startCase(item.title)}</Title>
+                    </Space>
+                  </Col>
+                  <Col span={18}>
+                    {(record?.hasOwnProperty(item.title) &&
+                      record[item.title]) || (
+                      <Text italic disabled>
+                        Not Updated
+                      </Text>
+                    )}
+                  </Col>
+                </Row>
+              )}
+            </List.Item>
+          )}
+        ></List>
+      </Col>
+      <Col span={8}>
+        {/* <Title level={5} style={{ textAlign: "center" }}>
+          OKR Status
+        </Title> */}
+        <List
+          size="small"
+          loading={loading}
+          itemLayout="horizontal"
+          bordered
+          header={
+            <Row>
+              <Space>
+                <div style={{ width: "35px" }}>
+                  {`${record?.okrStats?.overallProgress || 0}%`}
+                </div>
+                <Text
+                  style={{
+                    color: getStatusColorPro(record?.okrStats?.overallStatus),
+                  }}
+                >
+                  <StatusEmojis
+                    overallStatus={record?.okrStats?.overallStatus}
+                  />
+                  {startCase(
+                    `${record?.okrStats?.overallStatus || "Not Started!"}`
+                  )}
+                </Text>
+              </Space>
+              <Progress
+                strokeColor={getProgressColorPro(
+                  record?.okrStats?.overallStatus
+                )}
+                percent={record?.okrStats?.overallProgress}
+                size="small"
+                showInfo={false}
+              />
+            </Row>
+          }
+          dataSource={okrList}
+          renderItem={(listItem: any) => (
+            <List.Item
+              actions={[
+                <Typography.Text>
+                  {(record?.okrStats?.hasOwnProperty(listItem.title) &&
+                    record?.okrStats[listItem.title]) ||
+                    0}
+                </Typography.Text>,
+              ]}
+            >
+              <List.Item.Meta
+                title={startCase(listItem.title)}
+                avatar={<CheckCircleTwoTone twoToneColor={listItem.color} />}
+              />
+            </List.Item>
+          )}
+        />
+      </Col>
+    </Row>
+  );
+
   const debouncedSearch = debounce(async (queryData) => {
     await dispatch(searchUser(queryData));
   }, 300);
@@ -413,6 +627,7 @@ const People: React.FC<PeopleProps> = () => {
           //@ts-ignore
           queryData.searchQuery = searchInput;
           debouncedSearch(queryData);
+          // setPage(1);
         }
       } else dispatch(getPeople(queryData));
     }
@@ -436,6 +651,11 @@ const People: React.FC<PeopleProps> = () => {
                 columns={columns}
                 dataSource={data?.allMembers}
                 loading={loading}
+                rowKey={(record: any) => record?._id}
+                expandable={{
+                  expandedRowRender: (record) => <Profile record={record} />,
+                }}
+                expandRowByClick={true}
                 pagination={{
                   onChange(page, pageSize) {
                     setPage(page);
@@ -505,9 +725,7 @@ const People: React.FC<PeopleProps> = () => {
             )}
           </TabPane>
           <TabPane key="Organization" tab="Organization">
-            {activeTab === "Organization" && (
-              <OrgChartUsingDiv activeTab={activeTab} />
-            )}
+            {activeTab === "Organization" && <OrgChart activeTab={activeTab} />}
           </TabPane>
         </StyledTabs>
       </Container>
@@ -522,7 +740,7 @@ const Container = styled.div`
   padding: 30px;
 `;
 
-const SearchInput = styled(Input.Search)`
+const SearchInput = styled(Input)`
   max-width: 300px;
 `;
 

@@ -18,7 +18,7 @@ module.exports.verifytimePeriod = async function verifytimePeriod (req, res, nex
     
     const _id = req.userId;
     const user = await User.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     if (startDate && endDate){
         const timePeriodExist = await timePeriod.findOne({
             startDate: startDate,

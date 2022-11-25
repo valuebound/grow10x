@@ -18,11 +18,11 @@ import {
   deleteTimePeriodsAsync,
 } from "./timeperiodSlice";
 import {
-  updateNotificationAsync,
-  getOrganisationProfileAsync,
-  selectNotification,
+  // updateNotificationAsync,
+  getOrganisationProfileAsync, selectNotification, updateNotificationAsync,
+  // selectNotification,
 } from "./notificationsSlice";
-import { Periods as TimeCycleModal, Notifications } from "./components";
+import { Notifications, Periods as TimeCycleModal } from "./components";
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
 import { getAllTimePeriodsAsync, selectTime } from "./timeperiodSlice";
 import moment from "moment";
@@ -43,6 +43,8 @@ const TimePeriods: React.FC = () => {
   let CHECKIN_SUBTITLE = "(Sent to owners of the OKR)";
   let WEEKLY_TITLE = "Weekly Summary Emails";
   let WEEKLY_SUBTITLE = "(Sent to everyone in the company)";
+
+
 
   const handleCloseModal = () => setOpenCreateModal(false);
 
@@ -227,7 +229,7 @@ const TimePeriods: React.FC = () => {
   return (
     <>
       <PageHeader
-        title="Time Period"
+        title="Configuration"
         extra={[
           isTimeperiod && (
             <Button type="primary" onClick={onOpenCreateModal}>
@@ -242,9 +244,14 @@ const TimePeriods: React.FC = () => {
         onTabClick={(e) => showTimePeriod(e)}
       >
         <TabPane key="Time Period" tab="Time Period">
-          <Table columns={columns} dataSource={data} loading={loading} />
+          <Table
+            columns={columns}
+            dataSource={data}
+            loading={loading}
+            scroll={{ x: 500 }}
+          />
         </TabPane>
-        <TabPane key="Notifications" tab="Notifications">
+        {/* <TabPane key="Notifications" tab="Notifications">
           <Notifications
             title={CHECKIN_TITLE}
             subtitle={CHECKIN_SUBTITLE}
@@ -262,7 +269,7 @@ const TimePeriods: React.FC = () => {
             loading={loading}
             showCheckBox={false}
           />
-        </TabPane>
+        </TabPane> */}
       </Tabs>
       {openCreateModal && (
         <TimeCycleModal

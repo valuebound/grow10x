@@ -20,7 +20,6 @@ type UpdateMemberProps = {
   paginationSize: number;
 };
 
-const { Option } = Select;
 const { Item } = Form;
 
 const UpdateMember: React.FC<UpdateMemberProps> = ({
@@ -37,6 +36,9 @@ const UpdateMember: React.FC<UpdateMemberProps> = ({
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [canLoad, setCanLoad] = useState(false);
   const [disableButton, setDisableButton] = useState(true);
+  const [role, setRole] = useState("ADMIN");
+
+  const { Option } = Select;
 
   const onValuesChange = (changedValues: any, allValues: any) => {
     if (
@@ -45,7 +47,8 @@ const UpdateMember: React.FC<UpdateMemberProps> = ({
       allValues?.designation !== row?.designation ||
       allValues?.userName !== (row?.userName || "") ||
       allValues?.email !== row?.email ||
-      allValues?.reportingManager !== row?.reportingManager?._id
+      allValues?.reportingManager !== (row?.reportingManager?._id || "") ||
+      allValues?.role !== row?.role?.role
     ) {
       setDisableButton(false);
     } else {
@@ -68,10 +71,14 @@ const UpdateMember: React.FC<UpdateMemberProps> = ({
         onClose();
       }
       setConfirmLoading(false);
-    } catch (error) {
-      console.log("Error Updating Member", error);
-    }
+    } catch (error) {}
   };
+
+  const onChange = (event: any) => {
+    setRole(event);
+  };
+
+  const options = ["ADMIN", "USER"];
 
   useEffect(() => {
     dispatch(getReportingManagerList(row?._id));
@@ -104,6 +111,7 @@ const UpdateMember: React.FC<UpdateMemberProps> = ({
             email: row?.email,
             // teams: row?.teams,
             reportingManager: row?.reportingManager?._id,
+            role: row?.role?.role,
           }}
           onValuesChange={(changedValues, allValues) =>
             onValuesChange(changedValues, allValues)
@@ -177,7 +185,6 @@ const UpdateMember: React.FC<UpdateMemberProps> = ({
                 {/* <Input prefix={<UserOutlined />} /> */}
                 {/* TODO: change to input */}
                 <Select
-                  // defaultActiveFirstOption
                   showSearch
                   optionFilterProp="children"
                   filterOption={(input, option) =>
@@ -202,19 +209,72 @@ const UpdateMember: React.FC<UpdateMemberProps> = ({
                 </Select>
               </Item>
 
-              {/* This field is proposed to be used in next sprint */}
               {/* <Item
-                label="Teams"
-                name="teams"
+                label="Role"
+                name="role"
                 rules={[{ required: false, message: "Optional" }]}
+                style={
+                  {
+                    // width: "100%",
+                    // display: "inline-block",
+                    // marginLeft: "auto",
+                    // marginRight: "auto",
+                    // textAlign: "left",
+                  }
+                }
               >
-                <Input prefix={<TeamOutlined />} />
-                <Select>
-                  {row?.teams?.map((team: any) => (
-                    <Option value={team?._id}>{team?.teamName}</Option>
-                  ))}
+                <Select
+                  placeholder="Add Role"
+                  onChange={onChange}
+                  filterOption={(input, option) =>
+                    (option!.children as unknown as string)
+                      .toLowerCase()
+                      .includes(input.toLowerCase())
+                  }
+                >
+                  {options.map((item, index) => {
+                    return (
+                      <Option key={item}>
+                        <div className="demo-option-label-item">{item}</div>
+                      </Option>
+                    );
+                  })}
                 </Select>
               </Item> */}
+            </StyledCol>
+            <StyledCol span={20}>
+              <Item
+                label="Role"
+                name="role"
+                rules={[{ required: false, message: "Optional" }]}
+                style={
+                  {
+                    // width: "100%",
+                    // display: "inline-block",
+                    // marginLeft: "auto",
+                    // marginRight: "auto",
+                    // textAlign: "left",
+                  }
+                }
+              >
+                <Select
+                  placeholder="Add Role"
+                  onChange={onChange}
+                  filterOption={(input, option) =>
+                    (option!.children as unknown as string)
+                      .toLowerCase()
+                      .includes(input.toLowerCase())
+                  }
+                >
+                  {options.map((item, index) => {
+                    return (
+                      <Option key={item} value={item}>
+                        <div className="demo-option-label-item">{item}</div>
+                      </Option>
+                    );
+                  })}
+                </Select>
+              </Item>
             </StyledCol>
           </Row>
         </StyledForm>

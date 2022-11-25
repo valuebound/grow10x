@@ -15,16 +15,19 @@ import {
   Menu,
   Empty,
   Tooltip,
-  Badge,
   Button,
   Select,
   Tag,
   notification,
+  Popover,
+  List,
+  Comment,
+  Form,
+  Input,
 } from "antd";
 import {
   ClockCircleOutlined,
   MoreOutlined,
-  CommentOutlined,
   InfoCircleOutlined,
   CopyFilled,
   DeleteFilled,
@@ -32,6 +35,8 @@ import {
   CalendarOutlined,
   LockOutlined,
   CaretRightOutlined,
+  HistoryOutlined,
+  BankOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -40,11 +45,13 @@ import {
   OKR_TYPE,
   krUnitOptions,
   getStatusColorPro,
+  timeAgoFrom,
 } from "../../../utils/constants";
-import { CustomProgress } from "../../../components";
+import { CustomProgress, PopoverContent } from "../../../components";
 import { CommentsModal, OKRForm, DeleteOKR, CheckinPopup } from ".";
 import { Kr, OkrElement } from "../okr.types";
 import {
+  commentOnOkrAsync,
   getCompanyOkrsAsync,
   getIndividualOkrsAsync,
   getKrFeedbacksAsync,
@@ -80,11 +87,22 @@ const OKRList: React.FC<OKRListProps> = ({ okrType, showHeader, owner }) => {
   });
   const [openOKRForm, setOpenOKRForm] = useState<boolean>(false);
   const [quarter, setQuarter] = useState<any>("");
-  // const [currentQuarter, setCurrentQuarter] = useState("");
   const [editMode, setEditMode] = useState<boolean>(false);
   const [openOKRDelete, setOpenOKRDelete] = useState<boolean>(false);
   const [currentRow, setCurrentRow] = useState<any>({});
+  const [form] = Form.useForm();
+  const [krId, setKrId] = useState("");
+  const [activePanel, setActivePanel] = useState([]);
+  const [activeCheckin, setActiveCheckin] = useState(false);
 
+  const onComment = (values: any) => {
+    dispatch(commentOnOkrAsync({ krsId: krId, text: values.text }));
+    form.resetFields();
+    setTimeout(() => {
+      dispatch(getCompanyOkrsAsync({ quarter, owner }));
+      dispatch(getIndividualOkrsAsync({ quarter, owner }));
+    }, 600);
+  };
   const closeOKRForm = () => setOpenOKRForm(false);
   const closeOKRDelete = () => setOpenOKRDelete(false);
   const closeCommentsModal = () => setShowCommentsModal(false);
@@ -141,9 +159,8 @@ const OKRList: React.FC<OKRListProps> = ({ okrType, showHeader, owner }) => {
 
   const refreshOkrsList = () => {
     setTimeout(() => {
-      isCompany
-        ? dispatch(getCompanyOkrsAsync({ quarter, owner }))
-        : dispatch(getIndividualOkrsAsync({ quarter, owner }));
+      dispatch(getCompanyOkrsAsync({ quarter, owner }));
+      dispatch(getIndividualOkrsAsync({ quarter, owner }));
     }, 600);
   };
 
@@ -197,74 +214,156 @@ const OKRList: React.FC<OKRListProps> = ({ okrType, showHeader, owner }) => {
   )[0]?.isLocked;
 
   const pageActions = [
-    <StyledSelect
-      placeholder="Select a time period"
-      value={quarter}
-      suffixIcon={<CalendarOutlined />}
-      onChange={(value: any) => setQuarter(value)}
-    >
-      {timePeriods.map((q: any) => (
-        <Select.Option value={q?._id}>
-          <Space direction="horizontal">
-            {q?.name}
-            {q?.isCurrent && <Tag>current</Tag>}
-            {q?.isLocked && <LockOutlined />}
-          </Space>
-        </Select.Option>
-      ))}
-    </StyledSelect>,
-    <Button
-      type="primary"
-      disabled={isCurrentTimePeriodLocked}
-      onClick={onCreateOKR}
-      style={{ display: showHeader ? "block" : "none" }}
-    >
-      Create OKR
-    </Button>,
+    <Row gutter={[16, 16]} justify={"space-between"}>
+      <Col sm={16} xs={24}>
+        <StyledSelect
+          placeholder="Select a time period"
+          value={quarter}
+          suffixIcon={<CalendarOutlined />}
+          onChange={(value: any) => setQuarter(value)}
+        >
+          {timePeriods.map((q: any) => (
+            <Select.Option value={q?._id}>
+              <Space direction="horizontal">
+                {q?.name}
+                {q?.isCurrent && <Tag>current</Tag>}
+                {q?.isLocked && <LockOutlined />}
+              </Space>
+            </Select.Option>
+          ))}
+        </StyledSelect>
+      </Col>
+      <Col sm={6} xs={24}>
+        {!(okrType === "company") && (
+          <Button
+            type="primary"
+            disabled={isCurrentTimePeriodLocked}
+            onClick={onCreateOKR}
+            style={{ display: showHeader ? "block" : "none" }}
+          >
+            Create OKR
+          </Button>
+        )}
+      </Col>
+    </Row>,
   ];
 
   const PanelHeader = ({ okr }: { okr: OkrElement }) => (
-    <Space size="large">
-      <Avatar
-        size="large"
-        // @ts-ignore
-        src={okr?.okrOwner?.avatar}
-      />
-      <Space direction="vertical">
-        <Typography.Text>{okr?.okrObjective}</Typography.Text>
-        <Space size={20}>
-          <Typography.Text type="secondary">
-            <Tooltip title="Status">
-              <InfoIcon />
-            </Tooltip>
-            {/* @ts-ignore */}
-            <Typography.Text
+    <Row align="middle" wrap>
+      <Col sm={10} xs={13}>
+        <Space size="large">
+          <Popover
+            content={
+              <PopoverContent
+                // @ts-ignore
+                avatar={okr?.okrOwner?.avatar}
+                firstName={okr?.okrOwner?.firstName || ""}
+                surname={okr?.okrOwner?.surname || ""}
+                email={""}
+                // @ts-ignore
+                designation={okr?.okrOwner?.designation || ""}
+                phone={""}
+                location={""}
+              />
+            }
+          >
+            <Avatar
+              size="large"
               // @ts-ignore
-              style={{ color: getStatusColorPro(okr?.okrStatus) }}
-            >
-              {startCase(okr?.okrStatus || OKR_STATUS_NOT_FOUND)}
+              src={okr?.okrOwner?.avatar}
+            />
+          </Popover>
+          <Space direction="vertical">
+            <Typography.Text>
+              {okr?.okrObjective}{" "}
+              {okr.okrType === "company" && (
+                <StyledTag>
+                  {" "}
+                  <BankOutlined /> Organizational{" "}
+                </StyledTag>
+              )}
             </Typography.Text>
-          </Typography.Text>
+            <Space size={20}>
+              <Typography.Text type="secondary">
+                <Tooltip title="Status">
+                  <InfoIcon />
+                </Tooltip>
+                <Typography.Text
+                  // @ts-ignore
+                  style={{ color: getStatusColorPro(okr?.okrStatus) }}
+                >
+                  {startCase(okr?.okrStatus || OKR_STATUS_NOT_FOUND)}
+                </Typography.Text>
+              </Typography.Text>
+            </Space>
+          </Space>
         </Space>
-      </Space>
-    </Space>
+      </Col>
+      <Col sm={6} xs={10}>
+        <Space>
+          <ClockCircleOutlined type="primary" />
+          {`Due by ${handleDueDays(okr?.quarter)} days`}
+        </Space>
+      </Col>
+      <CustomProgressCol sm={7} xs={22} style={{ display: "flex", gap: "5px" }}>
+        <CustomProgress
+          size="default"
+          percent={okr?.okrProgress || 0}
+          width={"100%"}
+          expected={okr?.okrStatus}
+        />
+      </CustomProgressCol>
+      <Col span={1}>{showHeader && <OKRDropDown details={okr} />}</Col>
+    </Row>
+  );
+  const PanelHeaderComments = ({ count }: { count: any }) => (
+    <Row align="middle" wrap>
+      <Col>
+        <Row>{`Comments (${count})`}</Row>
+      </Col>
+    </Row>
   );
 
-  const PanelExtra = ({ okr }: { okr: OkrElement }) => (
-    <StyledPanelItem onClick={(e) => e.stopPropagation()}>
-      <Space style={{ width: 450 }}>
-        <ClockCircleOutlined type="primary" />
-        {`Due by ${handleDueDays(okr?.quarter)} days`}
-      </Space>
-      <CustomProgress
-        size="default"
-        percent={okr?.okrProgress || 0}
-        width={300}
-        expected={okr?.okrStatus}
-      />
-      {showHeader && <OKRDropDown details={okr} />}
-    </StyledPanelItem>
-  );
+  const collapseCheckin = (e: any) => {
+    if (activeCheckin) {
+      setActiveCheckin(false);
+    } else {
+      setActiveCheckin(true);
+    }
+  };
+
+  const childOkrs = (childOkrList: any) => {
+    return (
+      <>
+        {childOkrList?.map((okr: any) => {
+          return (
+            <Collapse
+              bordered={false}
+              expandIcon={({ isActive }) => (
+                <CaretRightOutlined rotate={isActive ? 90 : 0} />
+              )}
+            >
+              <Collapse.Panel
+                key={okr.okrObjectiveId}
+                header={<PanelHeader okr={okr} />}
+              >
+                <StyledTimeline>
+                  {okr?.krs?.map((kr: Kr) => (
+                    <PanelItem
+                      kr={kr}
+                      okrOwnerId={okr?.okrOwner?._id}
+                      okrObjectiveId={okr?.okrObjectiveId}
+                    />
+                  ))}
+                  {okr?.childOkrs?.length > 0 && childOkrs(okr?.childOkrs)}
+                </StyledTimeline>
+              </Collapse.Panel>
+            </Collapse>
+          );
+        })}
+      </>
+    );
+  };
 
   const PanelItem = ({
     kr,
@@ -275,32 +374,117 @@ const OKRList: React.FC<OKRListProps> = ({ okrType, showHeader, owner }) => {
     okrOwnerId: string;
     okrObjectiveId: string;
   }) => {
-    const comments = kr?.krComments.filter((k) => k.text !== "")?.length;
+    const comments = kr?.krComments.filter(
+      (k) => k.text !== "" && k?.text?.length > 0
+    )?.length;
+    const comments1 = kr?.krComments
+      .filter((k) => k.text !== "" && k?.text?.length > 0)
+      ?.reverse();
+
     return (
       <Timeline.Item key={kr?.krsId}>
-        <Row justify="space-between" align="middle">
-          <Col span={8}>
+        <Row justify="space-between" align="middle" wrap>
+          <Col xl={6} sm={20} xs={20}>
             <Typography.Text>{kr?.keyResult}</Typography.Text>
           </Col>
-          <CheckinPopup
-            kr={kr}
-            viewMode={
-              !showHeader ||
-              timePeriods?.filter((t: any) => t?._id === quarter)[0]?.isLocked
-            }
-            okrOwnerId={okrOwnerId}
-            isBoolean={kr?.unit === krUnitOptions[2].value}
-            progress={kr?.currentValue}
-            onFinish={refreshOkrsList}
-            timePeriods={timePeriods}
-            quarter={quarter}
-          />
+          <CheckinPopupCol xl={16} sm={24} xs={24}>
+            <CheckinPopup
+              kr={kr}
+              viewMode={
+                !showHeader ||
+                timePeriods?.filter((t: any) => t?._id === quarter)[0]?.isLocked
+              }
+              okrOwnerId={okrOwnerId}
+              isBoolean={kr?.unit === krUnitOptions[2].value}
+              progress={kr?.currentValue}
+              onFinish={refreshOkrsList}
+              timePeriods={timePeriods}
+              quarter={quarter}
+              onCollapse={activeCheckin}
+            />
+          </CheckinPopupCol>
           <Col span={2}>
             <Button type="text" onClick={setKr(kr, okrObjectiveId)}>
-              <Badge count={comments} size="small">
-                <CommentsIcon />
-              </Badge>
+              {/* <Badge size="small"> */}
+              <Tooltip title="Activity Feed">
+                <HistoryIcon />
+              </Tooltip>
+              {/* </Badge> */}
             </Button>
+          </Col>
+          <Col span={24}>
+            <Collapse
+              defaultActiveKey={krId}
+              onChange={(e: any) => {
+                setKrId(() => (e?.length > 0 ? kr?.krsId : ""));
+              }}
+              bordered={false}
+              expandIcon={({ isActive }) => (
+                <CaretRightOutlined rotate={isActive ? 90 : 0} />
+              )}
+            >
+              <Collapse.Panel
+                key={kr?.krsId}
+                header={<PanelHeaderComments count={comments} />}
+              >
+                <Container style={{ maxWidth: "800px", width: "100%" }}>
+                  <Form onFinish={onComment} form={form}>
+                    <Row>
+                      <Col span={2}>
+                        <Avatar size="small" src={currentUser?.avatar} />
+                      </Col>
+                      <Col span={18}>
+                        <Form.Item
+                          name="text"
+                          rules={[
+                            {
+                              required: true,
+                              message: "Please input your comment!",
+                            },
+                          ]}
+                        >
+                          <Input.TextArea rows={1} maxLength={300} showCount />
+                        </Form.Item>
+                      </Col>
+                      <Col span={4}>
+                        <Form.Item>
+                          <Button type="link" size="small" htmlType="submit">
+                            Send
+                          </Button>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </Form>
+                  <List
+                    dataSource={comments1}
+                    rowKey={(row: any) => row?._id}
+                    size="small"
+                    pagination={{
+                      pageSize: 3,
+                      size: "small",
+                    }}
+                    renderItem={(comment: any) => (
+                      <Comment
+                        author={`${comment?.commentedBy?.firstName} ${
+                          comment?.commentedBy?.surname || ""
+                        } commented`}
+                        avatar={<Avatar src={comment?.commentedBy?.avatar} />}
+                        datetime={
+                          <Typography.Text>
+                            {timeAgoFrom(comment?.createdAt)}
+                          </Typography.Text>
+                        }
+                        content={
+                          <Typography.Paragraph>
+                            {comment.text}
+                          </Typography.Paragraph>
+                        }
+                      />
+                    )}
+                  />
+                </Container>
+              </Collapse.Panel>
+            </Collapse>
           </Col>
         </Row>
       </Timeline.Item>
@@ -310,16 +494,16 @@ const OKRList: React.FC<OKRListProps> = ({ okrType, showHeader, owner }) => {
   const getComment = useMemo(() => {
     const krData = isCompany ? companyData : data;
     for (let item of krData?.okrs) {
-      if (item?.okrObjectiveId === currentId.currentOkrId) {
+      if (item?.okrObjectiveId === currentId?.currentOkrId) {
         for (let element of item?.krs) {
-          if (element?.krsId === currentId.currentKrId) {
+          if (element?.krsId === currentId?.currentKrId) {
             return element;
           }
         }
         break;
       }
     }
-  }, [currentId, data, companyData,isCompany]);
+  }, [currentId, data, companyData, isCompany]);
 
   useEffect(() => {
     if (quarter !== "") {
@@ -339,9 +523,16 @@ const OKRList: React.FC<OKRListProps> = ({ okrType, showHeader, owner }) => {
     const currentQuarter = timePeriods.filter((t: any) => t?.isCurrent);
     if (currentQuarter.length) {
       setQuarter(currentQuarter[0]?._id);
-      // setCurrentQuarter(currentQuarter[0]?._id);
     }
   }, [timePeriods]);
+
+  useEffect(() => {
+    setActivePanel(
+      (isCompany ? companyData : data)?.okrs?.map(
+        (okr: OkrElement) => okr.okrObjectiveId
+      )
+    );
+  }, [data, companyData]);
 
   return (
     <Container>
@@ -353,74 +544,66 @@ const OKRList: React.FC<OKRListProps> = ({ okrType, showHeader, owner }) => {
           <Empty description={EMPTY_OKR_LIST} />
         </Row>
       )}
-      {/* {loading ? (
-        <>
-          {new Array(4).fill(0).map((_) => (
-            <Skeleton
-              active={loading}
-              round
-              avatar
-              paragraph={{ rows: 1 }}
-              loading={loading}
-            />
-          ))}
-        </>
-      ) : ( */}
       {loading && <Loading />}
-      <Collapse
-        bordered={false}
-        expandIcon={({ isActive }) => (
-          <CaretRightOutlined rotate={isActive ? 90 : 0} />
-        )}
-      >
-        {(isCompany ? companyData : data)?.okrs?.map((okr: OkrElement) => (
-          <Collapse.Panel
-            key={okr.okrObjectiveId}
-            header={<PanelHeader okr={okr} />}
-            extra={<PanelExtra okr={okr} />}
-          >
-            <StyledTimeline>
-              {okr?.krs?.map((kr: Kr) => (
-                <PanelItem
-                  kr={kr}
-                  okrOwnerId={okr?.okrOwner?._id}
-                  okrObjectiveId={okr?.okrObjectiveId}
-                />
-              ))}
-            </StyledTimeline>
-          </Collapse.Panel>
-        ))}
-        {showCommentsModal && (
-          <CommentsModal
-            open={showCommentsModal}
-            onClose={closeCommentsModal}
-            kr={getComment}
-            viewMode={!showHeader || isCurrentTimePeriodLocked}
-            onFinish={refreshOkrsList}
-          />
-        )}
-        {openOKRForm && (
-          <OKRForm
-            row={currentRow}
-            isCompany={isCompany}
-            editMode={editMode}
-            open={openOKRForm}
-            onClose={closeOKRForm}
-            timePeriods={timePeriods}
-            currentQuarter={quarter}
-            onFinish={refreshOkrsList}
-          />
-        )}
-        {openOKRDelete && (
-          <DeleteOKR
-            open={openOKRDelete}
-            onClose={closeOKRDelete}
-            id={currentRow?.okrObjectiveId}
-            onFinish={refreshOkrsList}
-          />
-        )}
-      </Collapse>
-      {/* )} */}
+      {activePanel.length > 0 && (
+        <Collapse
+          bordered={false}
+          expandIcon={({ isActive }) => (
+            <CaretRightOutlined rotate={isActive ? 90 : 0} />
+          )}
+          defaultActiveKey={activePanel}
+          onChange={(e: any) => {
+            collapseCheckin(e);
+          }}
+        >
+          {(isCompany ? companyData : data)?.okrs?.map((okr: OkrElement) => (
+            <Collapse.Panel
+              key={okr.okrObjectiveId}
+              header={<PanelHeader okr={okr} />}
+            >
+              <StyledTimeline>
+                {okr?.krs?.map((kr: Kr) => (
+                  <PanelItem
+                    kr={kr}
+                    okrOwnerId={okr?.okrOwner?._id}
+                    okrObjectiveId={okr?.okrObjectiveId}
+                  />
+                ))}
+                {okr.childOkrs?.length > 0 && childOkrs(okr.childOkrs)}
+              </StyledTimeline>
+            </Collapse.Panel>
+          ))}
+        </Collapse>
+      )}
+      {showCommentsModal && (
+        <CommentsModal
+          open={showCommentsModal}
+          onClose={closeCommentsModal}
+          kr={getComment}
+          viewMode={!showHeader || isCurrentTimePeriodLocked}
+          onFinish={refreshOkrsList}
+        />
+      )}
+      {openOKRForm && (
+        <OKRForm
+          row={currentRow}
+          isCompany={isCompany}
+          editMode={editMode}
+          open={openOKRForm}
+          onClose={closeOKRForm}
+          timePeriods={timePeriods}
+          currentQuarter={quarter}
+          onFinish={refreshOkrsList}
+        />
+      )}
+      {openOKRDelete && (
+        <DeleteOKR
+          open={openOKRDelete}
+          onClose={closeOKRDelete}
+          id={currentRow?.okrObjectiveId}
+          onFinish={refreshOkrsList}
+        />
+      )}
     </Container>
   );
 };
@@ -437,13 +620,6 @@ const StyledDropdown = styled(Dropdown)`
   margin-left: 10px;
 `;
 
-const StyledPanelItem = styled.div`
-  width: 500px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-`;
-
 const InfoIcon = styled(InfoCircleOutlined)`
   margin-right: 10px;
 `;
@@ -452,15 +628,50 @@ const MoreIcon = styled(MoreOutlined)`
   font-size: 20px;
 `;
 
-const CommentsIcon = styled(CommentOutlined)`
+const HistoryIcon = styled(HistoryOutlined)`
   font-size: 16px;
 `;
 
 const StyledSelect = styled(Select)`
   min-width: 350px;
+
+  @media screen and (max-width: 750px) {
+    min-width: 300px;
+  }
+  @media screen and (max-width: 576px) {
+    min-width: 0px;
+    max-width: 300px;
+    width: 100%;
+  }
+  @media screen and (max-width: 300px) {
+    max-width: 200px;
+    width: 100%;
+  }
 `;
 
 const StyledTimeline = styled(Timeline)`
   margin-left: 50px;
   margin-top: 20px;
+
+  @media screen and (max-width: 576px) {
+    margin-left: 0px;
+  }
+`;
+
+const CustomProgressCol = styled(Col)`
+  @media screen and (max-width: 576px) {
+    order: 4;
+  }
+`;
+
+const CheckinPopupCol = styled(Col)`
+  @media screen and (max-width: 1200px) {
+    margin-left: 5px;
+    margin-right: 5px;
+    order: 4;
+  }
+`;
+
+const StyledTag = styled(Tag)`
+  margin-left: 10px;
 `;

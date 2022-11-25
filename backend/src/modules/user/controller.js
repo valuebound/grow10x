@@ -1,36 +1,53 @@
 const User = require("./model");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const {
   customResponse,
   customPagination,
   signToken,
   getRefreshToken,
   getAvatarUrl,
+  getStatsOfOkrWithoutOkrList,
 } = require("../../utility/helper");
-const { ROLES, HTTP_CODES, LOGIN_TYPE, ERROR_MESSAGES, OKR_TYPES } = require("../../utility/constants");
+const {
+  ROLES,
+  HTTP_CODES,
+  ERROR_MESSAGES,
+  OKR_TYPES,
+} = require("../../utility/constants");
 const { sendEmail } = require("../../utility/generateEmail");
-const { generateMessageInviteTemplate, generateSendOtpTemplate, generateSuccessUpdatePassword } = require("../../utility/generateTemplate");
-const { addUser_JoiSchema, login_JoiSchema, importUserSchema, changePasswordSchema, setPassword_schema,
+const {
+  generateMessageInviteTemplate,
+  generateSendOtpTemplate,
+  generateSuccessUpdatePassword,
+} = require("../../utility/generateTemplate");
+const {
+  addUser_JoiSchema,
+  login_JoiSchema,
+  importUserSchema,
+  changePasswordSchema,
+  setPassword_schema,
   updateUserProfile_JoiSchema,
-  updateSelfProfile, } = require("./schema");
+  updateSelfProfile,
+} = require("./schema");
 const { OAuth2Client } = require("google-auth-library");
 const Organization = require("../organization/model");
-const timePeriod = require('../timeperiod/model');
+const timePeriod = require("../timeperiod/model");
 const client = new OAuth2Client();
 const { nanoid, customAlphabet } = require("nanoid");
 const { userType } = require("../../models");
 const logger = require("../../utility/logger");
 const readXlsxFile = require("read-excel-file/node");
 global.__basedir = __dirname + "/..";
-const csv = require('csvtojson');
-const { promisify } = require('util');
-const fs = require('fs')
+const csv = require("csvtojson");
+const { promisify } = require("util");
+const fs = require("fs");
 const unlinkAsync = promisify(fs.unlink);
-const sanitizer = require('sanitize')();
-const { env } = require('../../config/environment');
+const sanitizer = require("sanitize")();
+const { env } = require("../../config/environment");
 const Okr = require("../okr/model");
 const config = require(`../../config/${env}.config`);
-const { getStatsOfOkr } = require("../organization/controller");
+const CryptoJS = require("crypto-js");
+const UserType = require("../userType/model");
 
 /**
  * Function to handle user's Login
@@ -199,11 +216,11 @@ const logout = async (req, res) => {
     );
     const resData = customResponse({
       code: HTTP_CODES.SUCCESS,
-      message : 'Logged-Out Successfully!',
+      message: "Logged-Out Successfully!",
     });
     return res.status(HTTP_CODES.SUCCESS).send(resData);
   } catch (error) {
-    logger.customLogger.log('error', error);
+    logger.customLogger.log("error", error);
     message = "Internal Server Error";
     const resData = customResponse({
       code: HTTP_CODES.INTERNAL_SERVER_ERROR,
@@ -221,43 +238,47 @@ const logout = async (req, res) => {
 const getReportingManagerList = async (req, res) => {
   try {
     const role = req.decode.role;
-    const getRole = await userType.findById(role,{_id:1, role:1});
+    const getRole = await userType.findById(role, { _id: 1, role: 1 });
     const _id = req.userId;
-    const queryUserId = sanitizer.value(req.query.user, 'str');
+    const queryUserId = sanitizer.value(req.query.user, "str");
     const user = await User.findById(_id);
-    const orgId = user.organization;
-    const allUsers = await User.find({ organization: orgId , isActive: true, isDeleted:false })
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
+    const allUsers = await User.find({
+      organization: orgId,
+      isActive: true,
+      isDeleted: false,
+    });
 
-    if (!queryUserId || queryUserId === '' || queryUserId === null){
+    if (!queryUserId || queryUserId === "" || queryUserId === null) {
       const resData = customResponse({
-        code:HTTP_CODES.BAD_REQUEST,
+        code: HTTP_CODES.BAD_REQUEST,
         message: `Invalid User Id Provided`,
       });
       return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
     }
     const userData = [];
-    for( i=0; i<allUsers.length; i++){
-      if (String(allUsers[i]._id) !== String(queryUserId)){
-        let surnameExist = allUsers[i].surname ? allUsers[i].surname: "";
+    for (i = 0; i < allUsers.length; i++) {
+      if (String(allUsers[i]._id) !== String(queryUserId)) {
+        let surnameExist = allUsers[i].surname ? allUsers[i].surname : "";
         let data = {
-          id : allUsers[i]._id,
-          name : `${allUsers[i].firstName} ${surnameExist}`,
-          email : allUsers[i].email,
+          id: allUsers[i]._id,
+          name: `${allUsers[i].firstName} ${surnameExist}`,
+          email: allUsers[i].email,
           designation: allUsers[i].designation,
-        }
+        };
         userData.push(data);
       }
     }
     const resData = customResponse({
-      code:HTTP_CODES.SUCCESS,
-      message: `${userData.length } user details Fetched`,
-      data: userData
+      code: HTTP_CODES.SUCCESS,
+      message: `${userData.length} user details Fetched`,
+      data: userData,
     });
     return res.status(HTTP_CODES.SUCCESS).send(resData);
   } catch (error) {
-    logger.customLogger.log('error', error);
+    logger.customLogger.log("error", error);
     const resData = customResponse({
-      code:HTTP_CODES.INTERNAL_SERVER_ERROR,
+      code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message: ERROR_MESSAGES.SOMETHING_WENT_WRONG,
       err: {},
     });
@@ -267,18 +288,32 @@ const getReportingManagerList = async (req, res) => {
 
 const addUser = async (req, res) => {
   const _id = req.userId;
-  const adminData = await User.findById(_id,{_id:0, firstName:1, surname:1, organization:1});
+  const adminData = await User.findById(_id, {
+    _id: 0,
+    firstName: 1,
+    surname: 1,
+    organization: 1,
+  });
   const allData = [];
   let UsersResult = [];
   let importError = [];
-  const orgId = adminData.organization;
+  const orgId = req?.query?.orgid ? req?.query?.orgid : adminData.organization;
   const length = Object.keys(req.body).length;
-  const getAdminRoleId = await userType.findOne({role: ROLES.ADMIN},{_id:1, role:1});
-  const defaultManager = await User.findOne({ organization:orgId, role: getAdminRoleId._id },{_id:1});
+  const getAdminRoleId = await userType.findOne(
+    { role: ROLES.ADMIN },
+    { _id: 1, role: 1 }
+  );
+  const defaultManager = await User.findOne(
+    { organization: orgId, role: getAdminRoleId._id },
+    { _id: 1 }
+  );
   /**
    * get user role id from userTypes
    */
-  const getUserRoleId = await userType.findOne({role: ROLES.USER},{_id:1, role:1});
+  const getUserRoleId = await userType.findOne(
+    { role: ROLES.USER },
+    { _id: 1, role: 1 }
+  );
   /**
    * JOI validation
    */
@@ -293,7 +328,9 @@ const addUser = async (req, res) => {
   }
   try {
     for (i = 0; i < length; i++) {
-      const getAvatar = await getAvatarUrl(`${req.body[i].firstName}${req.body[i].surname}`);
+      const getAvatar = await getAvatarUrl(
+        `${req.body[i].firstName}${req.body[i].surname}`
+      );
       let randomPassword = nanoid(10);
       const new_user = await User({
         firstName: req.body[i].firstName,
@@ -301,7 +338,9 @@ const addUser = async (req, res) => {
         email: req.body[i].email,
         organization: orgId,
         role: getUserRoleId._id,
-        reportingManager: req?.body[i]?.reportingManager ? req.body[i].reportingManager : defaultManager._id,
+        reportingManager: req?.body[i]?.reportingManager
+          ? req.body[i].reportingManager
+          : defaultManager._id,
         password: randomPassword,
         verified: true,
         avatar: getAvatar,
@@ -312,18 +351,28 @@ const addUser = async (req, res) => {
         /**
          * Add User in Who Reports Me Array
          */
-        const updateWhoReportsMe = await User.findByIdAndUpdate( new_user.reportingManager,
+        const updateWhoReportsMe = await User.findByIdAndUpdate(
+          new_user.reportingManager,
           {
             $push: {
               whoReportsMe: new_user._id,
             },
           },
           {
-            new: true
-          });
+            new: true,
+          }
+        );
         UsersResult.push({ index: i, message: save_data.email });
-        const emailMessage = await generateMessageInviteTemplate(new_user, adminData, randomPassword);
-        await sendEmail(new_user.email, `GROW10X: Account Created`, emailMessage);
+        const emailMessage = await generateMessageInviteTemplate(
+          new_user,
+          adminData,
+          randomPassword
+        );
+        await sendEmail(
+          new_user.email,
+          `GROW10X: Account Created`,
+          emailMessage
+        );
       } catch (err) {
         importError.push({
           index: i,
@@ -349,7 +398,7 @@ const addUser = async (req, res) => {
         : { errorName: null, importError: [] },
     });
   } catch (error) {
-    logger.customLogger.log('error', error);
+    logger.customLogger.log("error", error);
     const resData = customResponse({
       code: HTTP_CODES.BAD_REQUEST,
       message: "UNABLE TO SIGNUP",
@@ -399,7 +448,7 @@ const refreshToken = async (req, res) => {
       return res.status(HTTP_CODES.UNAUTHORIZED).send(resData);
     }
   } catch (error) {
-    logger.customLogger.log('error', error);
+    logger.customLogger.log("error", error);
     message = "Bad Request";
     const resData = customResponse({
       code: HTTP_CODES.BAD_REQUEST,
@@ -421,12 +470,12 @@ const getUsersRoleBased = async (req, res) => {
     const role = req?.query?.role;
     const _id = req.userId;
     const user = await User.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     if (role) {
       const user = await User.find(
-        { role: role, organization: orgId , isActive:true, isDeleted:false},
+        { role: role, organization: orgId, isActive: true, isDeleted: false },
         { firstName: 1, surname: 1 }
-      ).populate("role",{ _id:1, role:1});
+      ).populate("role", { _id: 1, role: 1 });
       const resData = customResponse({
         code: HTTP_CODES.SUCCESS,
         message: `${user[0].role.role} Role User's Data is Fetched Successfully`,
@@ -442,8 +491,8 @@ const getUsersRoleBased = async (req, res) => {
       return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
     }
   } catch (error) {
-    logger.customLogger.log('error', `${error}`);
-    if (error.kind === 'ObjectId'){
+    logger.customLogger.log("error", `${error}`);
+    if (error.kind === "ObjectId") {
       const resData = customResponse({
         code: HTTP_CODES.BAD_REQUEST,
         message: "Invalid Role id Provided",
@@ -468,11 +517,11 @@ const getUsersRoleBased = async (req, res) => {
  */
 const setPassword = async (req, res) => {
   try {
-    const user_id = sanitizer.value(req.params.userid, 'str');
+    const user_id = sanitizer.value(req.params.userid, "str");
     const findUser = await User.findById(
       { _id: user_id },
-      { passwordChanged: 1, role: 1, email: 1, otpVerified:1 }
-    ).populate("role",{ _id:1, role:1 });
+      { passwordChanged: 1, role: 1, email: 1, otpVerified: 1 }
+    ).populate("role", { _id: 1, role: 1 });
 
     if (!findUser) {
       const resdata = customResponse({
@@ -526,7 +575,9 @@ const setPassword = async (req, res) => {
           { password: password },
           { new: true }
         );
-        await org.save();
+        if (org){
+          await org.save();
+        }
       }
       const resData = customResponse({
         code: HTTP_CODES.SUCCESS,
@@ -543,8 +594,8 @@ const setPassword = async (req, res) => {
       return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
     }
   } catch (error) {
-    logger.customLogger.log('error', `${error}`);
-    if (error.kind === 'ObjectId'){
+    logger.customLogger.log("error", `${error}`);
+    if (error.kind === "ObjectId") {
       const resData = customResponse({
         code: HTTP_CODES.BAD_REQUEST,
         message: "Invalid user id Provided",
@@ -566,8 +617,8 @@ const setPassword = async (req, res) => {
  * @param {query.email} req
  */
 const resetPassword = async (req, res) => {
-  const email = sanitizer.value(req.query.email, 'email');
-  if (email === null){
+  const email = sanitizer.value(req.query.email, "email");
+  if (email === null) {
     const resdata = customResponse({
       code: HTTP_CODES.BAD_REQUEST,
       message: "Invalid Email",
@@ -589,17 +640,17 @@ const resetPassword = async (req, res) => {
        * Send email Function
        */
       let otp = customAlphabet("1234567890", 4);
-      let randomOTP = otp()
+      let randomOTP = otp();
       const userUpdate = await User.findOneAndUpdate(
-          { email: email },
-          {
-            otp: randomOTP,
-            otpVerified: false,
-          },
-          { new: true }
-        );
-      const emailMessage = await generateSendOtpTemplate(user, randomOTP)
-      sendEmail(user.email, `GROW10X: OTP for Reset Password`, emailMessage );
+        { email: email },
+        {
+          otp: randomOTP,
+          otpVerified: false,
+        },
+        { new: true }
+      );
+      const emailMessage = await generateSendOtpTemplate(user, randomOTP);
+      sendEmail(user.email, `GROW10X: OTP for Reset Password`, emailMessage);
 
       const resData = customResponse({
         code: HTTP_CODES.SUCCESS,
@@ -615,7 +666,7 @@ const resetPassword = async (req, res) => {
       return res.status(HTTP_CODES.BAD_REQUEST).send(resdata);
     }
   } catch (error) {
-    logger.customLogger.log('error', `${error}`);
+    logger.customLogger.log("error", `${error}`);
     const resData = customResponse({
       code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message: "Error Occurred",
@@ -632,13 +683,11 @@ const resetPassword = async (req, res) => {
 const inactiveUser = async (req, res) => {
   const _id = req.userId;
   const user = await User.findById(_id);
-  const orgId = user.organization;
-  const user_id = sanitizer.value(req.params.userid, 'str');
-  const type = sanitizer.value(req.query.type, 'str');
+  const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
+  const user_id = sanitizer.value(req.params.userid, "str");
+  const type = sanitizer.value(req.query.type, "str");
   try {
-    const findUser = await User.findOne(
-      { _id: user_id, organization: orgId },
-    );
+    const findUser = await User.findOne({ _id: user_id, organization: orgId });
     if (!findUser || findUser === null) {
       const resdata = customResponse({
         code: HTTP_CODES.BAD_REQUEST,
@@ -647,8 +696,8 @@ const inactiveUser = async (req, res) => {
       return res.status(HTTP_CODES.BAD_REQUEST).send(resdata);
     }
     let markInactive;
-    if (type === 'deactivate'){
-      if (findUser.isActive === false){
+    if (type === "deactivate") {
+      if (findUser.isActive === false) {
         const resdata = customResponse({
           code: HTTP_CODES.BAD_REQUEST,
           message: "User Already Deactivated",
@@ -663,9 +712,8 @@ const inactiveUser = async (req, res) => {
         },
         { new: true }
       );
-    }
-    else if (type === 'delete'){
-      if (findUser.isActive === true){
+    } else if (type === "delete") {
+      if (findUser.isActive === true) {
         const resdata = customResponse({
           code: HTTP_CODES.BAD_REQUEST,
           message: "User Already Deleted",
@@ -682,54 +730,64 @@ const inactiveUser = async (req, res) => {
       );
     }
 
-    if (markInactive.isActive === false || markInactive.isDeleted === true){
+    if (markInactive.isActive === false || markInactive.isDeleted === true) {
       /**
        * Removing Reporting manager of markInactive user from whoReportsMe Array.
        */
-       const removeFromWhoReportsMe = await User.findByIdAndUpdate( markInactive.reportingManager,
+      const removeFromWhoReportsMe = await User.findByIdAndUpdate(
+        markInactive.reportingManager,
         {
           $pull: {
             whoReportsMe: markInactive._id,
           },
         },
         {
-          new: true
-        });
+          new: true,
+        }
+      );
       /**
        * Assigning New Reporting Manager
        */
       let newManager = markInactive.reportingManager;
-      const findUsersUnderMe = await User.find({reportingManager: markInactive._id});
-      if (findUsersUnderMe && findUsersUnderMe.length > 0){
-        for(let i = 0; i< findUsersUnderMe.length; i++){
+      const findUsersUnderMe = await User.find({
+        reportingManager: markInactive._id,
+      });
+      if (findUsersUnderMe && findUsersUnderMe.length > 0) {
+        for (let i = 0; i < findUsersUnderMe.length; i++) {
           const updateManager = await User.findOneAndUpdate(
             { _id: findUsersUnderMe[i]._id },
-            { reportingManager: newManager
+            {
+              reportingManager: newManager,
             },
             { new: true }
-          )
-        /**
-         * Add User in Who Reports Me Array
-         */
-         const updateWhoReportsMe = await User.findByIdAndUpdate( newManager,
-          {
-            $push: {
-              whoReportsMe: findUsersUnderMe[i]._id,
+          );
+          /**
+           * Add User in Who Reports Me Array
+           */
+          const updateWhoReportsMe = await User.findByIdAndUpdate(
+            newManager,
+            {
+              $push: {
+                whoReportsMe: findUsersUnderMe[i]._id,
+              },
             },
-          },
-          {
-            new: true
-          });
+            {
+              new: true,
+            }
+          );
         }
       }
     }
     const resData = customResponse({
       code: HTTP_CODES.SUCCESS,
-      message: type === 'deactivate'? `${markInactive.firstName} is successfully Deactivated.` : `${markInactive.firstName} is successfully Deleted.`,
+      message:
+        type === "deactivate"
+          ? `${markInactive.firstName} is successfully Deactivated.`
+          : `${markInactive.firstName} is successfully Deleted.`,
     });
     return res.status(HTTP_CODES.SUCCESS).send(resData);
   } catch (error) {
-    logger.customLogger.log('error', `${error}`);
+    logger.customLogger.log("error", `${error}`);
     const resData = customResponse({
       code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message: "Error Occurred",
@@ -745,7 +803,12 @@ const inactiveUser = async (req, res) => {
  */
 const updateUserProfile = async (req, res) => {
   try {
-    const userId = sanitizer.value(req.params.userid, 'str');
+    const userId = sanitizer.value(req.params.userid, "str");
+    const findUserRole = await User.findById(
+      { _id: req.userId },
+      { role: 1 }
+    ).populate("role", { _id: 1, role: 1 });
+
     const { error } = updateSelfProfile.validate(req.body);
     if (error) {
       const resData = customResponse({
@@ -755,44 +818,86 @@ const updateUserProfile = async (req, res) => {
       });
       return res.status(HTTP_CODES.UNPROCESSABLE_ENTITY).send(resData);
     }
-    const updateData = await User.findByIdAndUpdate(
-      { _id: userId },
-      {
-        firstName: req?.body?.firstName,
-        surname: req?.body?.surname,
-        userName: req?.body?.userName,
-        location: req?.body?.location,
-        phone: req?.body?.phone,
-        phoneSecondary: req?.body?.phoneSecondary,
-        gender: req?.body?.gender,
-        dob: req?.body?.dob,
-        projectDetails:req?.body?.projectDetails,
-        about: req?.body?.about,
-      },
-      { new: true }
-    );
+    let updateData;
+    if (findUserRole.role.role === ROLES.ADMIN) {
+      updateData = await User.findByIdAndUpdate(
+        { _id: userId },
+        {
+          firstName: req?.body?.firstName,
+          surname: req?.body?.surname,
+          userName: req?.body?.userName,
+          location: req?.body?.location,
+          phone: req?.body?.phone,
+          phoneSecondary: req?.body?.phoneSecondary,
+          gender: req?.body?.gender,
+          dob: req?.body?.dob,
+          designation: req?.body?.designation,
+          projectDetails: req?.body?.projectDetails,
+          about: req?.body?.about,
+        },
+        { new: true }
+      );
+    } else {
+      updateData = await User.findByIdAndUpdate(
+        { _id: userId },
+        {
+          firstName: req?.body?.firstName,
+          surname: req?.body?.surname,
+          userName: req?.body?.userName,
+          location: req?.body?.location,
+          phone: req?.body?.phone,
+          phoneSecondary: req?.body?.phoneSecondary,
+          gender: req?.body?.gender,
+          dob: req?.body?.dob,
+          projectDetails: req?.body?.projectDetails,
+          about: req?.body?.about,
+        },
+        { new: true }
+      );
+    }
+
+    /**
+     * Update User Data in Organization Model as well
+     */
+    const ifExistUserInOrgModel = await Organization.findOne({ adminEmail: updateData?.email }).count();
+    if (ifExistUserInOrgModel > 0){
+      const updateDatainOrgModel = await Organization.findOneAndUpdate(
+        { 
+          adminEmail: updateData?.email
+        },
+        {
+          adminName: `${updateData?.firstName} ${updateData?.surname}`,
+          adminPhone: updateData?.phone,
+          location: updateData?.location,
+        },
+        { new: true }
+      );
+    }
     /**
      * Update Avatar based on Gender
      */
-    if (req?.body?.gender === 'Male') {
-      const avatar = `https://avatars.dicebear.com/api/male/${req?.body?.firstName}${req?.body?.surname}.svg?mood[]=happy&background=%23EE6C4DFF`
-      const updateAvatar = await User.findByIdAndUpdate({
-        _id: userId,
-      },
-      {
-        avatar:avatar,
-      },
-      { new: true })
-    }
-    else if(req?.body?.gender === 'Female') {
-      const avatar = `https://avatars.dicebear.com/api/female/${req?.body?.firstName}${req?.body?.surname}.svg?mood[]=happy&background=%23EE6C4DFF`
-      const updateAvatar = await User.findByIdAndUpdate({
-        _id: userId,
-      },
-      {
-        avatar:avatar,
-      },
-      { new: true })
+    if (req?.body?.gender === "Male") {
+      const avatar = `https://avatars.dicebear.com/api/male/${req?.body?.firstName}${req?.body?.surname}.svg?mood[]=happy&background=%23EE6C4DFF`;
+      const updateAvatar = await User.findByIdAndUpdate(
+        {
+          _id: userId,
+        },
+        {
+          avatar: avatar,
+        },
+        { new: true }
+      );
+    } else if (req?.body?.gender === "Female") {
+      const avatar = `https://avatars.dicebear.com/api/female/${req?.body?.firstName}${req?.body?.surname}.svg?mood[]=happy&background=%23EE6C4DFF`;
+      const updateAvatar = await User.findByIdAndUpdate(
+        {
+          _id: userId,
+        },
+        {
+          avatar: avatar,
+        },
+        { new: true }
+      );
     }
     const resData = customResponse({
       code: HTTP_CODES.SUCCESS,
@@ -800,8 +905,8 @@ const updateUserProfile = async (req, res) => {
     });
     return res.status(HTTP_CODES.SUCCESS).send(resData);
   } catch (error) {
-    logger.customLogger.log('error', `${error}`);
-    if (error.kind === 'ObjectId'){
+    logger.customLogger.log("error", `${error}`);
+    if (error.kind === "ObjectId") {
       const resData = customResponse({
         code: HTTP_CODES.BAD_REQUEST,
         message: "Invalid user id Provided",
@@ -826,10 +931,16 @@ const updateUserProfile = async (req, res) => {
 const updateUserProfileByAdmin = async (req, res) => {
   try {
     const userId = req.params.userid;
+    const role = req.body.role.toUpperCase()
+    const getRoleId = await UserType.findOne({role:role},{_id:1})
     /**
      * Get Old User Data
      */
-    const getOldDataOfUser = await User.findById(userId, {reportingManager:1, email:1});
+    const getOldDataOfUser = await User.findById(userId, {
+      reportingManager: 1,
+      email: 1,
+      role:1
+    });
     const newReportingManagerFromBody = req?.body?.reportingManager;
     const { error } = updateUserProfile_JoiSchema.validate(req.body);
     if (error) {
@@ -843,9 +954,11 @@ const updateUserProfileByAdmin = async (req, res) => {
     /**
      * Email Duplicate Validation
      */
-    if (getOldDataOfUser.email !== req?.body?.email){
-      const checkEmailExist = await User.findOne({ email : req.body.email}).count();
-      if (checkEmailExist > 0){
+    if (getOldDataOfUser.email !== req?.body?.email) {
+      const checkEmailExist = await User.findOne({
+        email: req.body.email,
+      }).count();
+      if (checkEmailExist > 0) {
         const resData = customResponse({
           code: HTTP_CODES.UNPROCESSABLE_ENTITY,
           message: `Email '${req.body.email}' is already exist`,
@@ -862,7 +975,7 @@ const updateUserProfileByAdmin = async (req, res) => {
         surname: req?.body?.surname,
         userName: req?.body?.userName,
         email: req?.body?.email,
-        role: req?.body?.role,
+        role: getRoleId ? getRoleId : getOldDataOfUser.role,//req?.body?.role,
         location: req?.body?.location,
         phone: req?.body?.phone,
         teams: req?.body?.teams,
@@ -875,39 +988,61 @@ const updateUserProfileByAdmin = async (req, res) => {
         gender: req?.body?.gender,
         dob: req?.body?.dob,
         designation: req?.body?.designation,
-        projectDetails:req?.body?.projectDetails,
+        projectDetails: req?.body?.projectDetails,
       },
       { new: true }
-    )
+    );
+    /**
+     * Update User Data in Organization Model as well
+     */
+    const ifExistUserInOrgModel = await Organization.findOne({ adminEmail: updateData?.email }).count();
+    if (ifExistUserInOrgModel > 0){
+      const updateDatainOrgModel = await Organization.findOneAndUpdate(
+        { 
+          adminEmail: updateData?.email
+        },
+        {
+          adminName: `${updateData?.firstName} ${updateData?.surname}`,
+          adminPhone: updateData?.phone,
+          location: updateData?.location,
+        },
+        { new: true }
+      );
+    }
     /**
      * Check if the Reporting Manager is new or not.
      */
-     if (String(getOldDataOfUser?.reportingManager) !== String(newReportingManagerFromBody)){
+    if (
+      String(getOldDataOfUser?.reportingManager) !==
+      String(newReportingManagerFromBody)
+    ) {
       /**
        * If Reporting Manager is not equal
        * Remove it from current WhoReportsMe Array.
        */
-      const removeFromWhoReportsMe = await User.findByIdAndUpdate( getOldDataOfUser?.reportingManager,
+      const removeFromWhoReportsMe = await User.findByIdAndUpdate(
+        getOldDataOfUser?.reportingManager,
         {
           $pull: {
             whoReportsMe: userId,
           },
         },
         {
-          new: true
+          new: true,
         }
       );
       /**
        * Add User in Who Reports Me Array of New Reporting Manager
        */
-      const updateWhoReportsMe = await User.findByIdAndUpdate( updateData?.reportingManager,
+      const updateWhoReportsMe = await User.findByIdAndUpdate(
+        updateData?.reportingManager,
         {
           $push: {
             whoReportsMe: updateData?._id,
           },
         },
         {
-          new: true
+          new: true,
         }
       );
     }
@@ -918,8 +1053,8 @@ const updateUserProfileByAdmin = async (req, res) => {
     });
     return res.status(HTTP_CODES.SUCCESS).send(resData);
   } catch (error) {
-    logger.customLogger.log('error', `${error}`);
-    if (error.kind === 'ObjectId'){
+    logger.customLogger.log("error", `${error}`);
+    if (error.kind === "ObjectId") {
       const resData = customResponse({
         code: HTTP_CODES.BAD_REQUEST,
         message: "Invalid user id Provided",
@@ -938,16 +1073,18 @@ const updateUserProfileByAdmin = async (req, res) => {
 
 const verifyOtp = async (req, res) => {
   try {
-    const email = sanitizer.value(req.query.email, 'email');
-    if (email === null){
+    const email = sanitizer.value(req.body.email, "email");
+    if (email === null) {
       const resdata = customResponse({
         code: HTTP_CODES.BAD_REQUEST,
         message: "Invalid Email",
       });
       return res.status(HTTP_CODES.BAD_REQUEST).send(resdata);
     }
-    const otp = sanitizer.value(req.query.otp, 'int');
-    if( otp.toString().length !== 4){
+    const otp = sanitizer.value(req.body.otp, "str");
+    const otpDecrypt = CryptoJS.AES.decrypt(otp, config.CRYPTO_SECRET);
+    const originalText = otpDecrypt.toString(CryptoJS.enc.Utf8);
+    if (originalText.toString().length !== 4) {
       const resdata = customResponse({
         code: HTTP_CODES.BAD_REQUEST,
         message: "Invalid Otp",
@@ -967,18 +1104,28 @@ const verifyOtp = async (req, res) => {
       const verifyOTPinDB = await User.findOneAndUpdate(
         {
           email: email,
-          otp: otp,
+          otp: originalText,
         },
-        { otpVerified: true,
-          passwordChanged: false },
+        {
+          otpVerified: true,
+          passwordChanged: false,
+        },
         { new: true }
       );
-      const resData = customResponse({
-        code: HTTP_CODES.SUCCESS,
-        message: `OTP Verified`,
-        data: { userid: verifyOTPinDB._id },
-      });
-      return res.status(HTTP_CODES.SUCCESS).send(resData);
+      if (verifyOTPinDB?._id) {
+        const resData = customResponse({
+          code: HTTP_CODES.SUCCESS,
+          message: `OTP Verified`,
+          data: { userid: verifyOTPinDB?._id },
+        });
+        return res.status(HTTP_CODES.SUCCESS).send(resData);
+      } else {
+        const resData = customResponse({
+          code: HTTP_CODES.BAD_REQUEST,
+          message: `OTP Not Verified. Please Enter Valid OTP`,
+        });
+        return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+      }
     } else {
       const resData = customResponse({
         code: HTTP_CODES.BAD_REQUEST,
@@ -988,7 +1135,7 @@ const verifyOtp = async (req, res) => {
       return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
     }
   } catch (error) {
-    logger.customLogger.log('error', error);
+    logger.customLogger.log("error", error.stack);
     const resData = customResponse({
       code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message: "Error Occurred",
@@ -1058,7 +1205,7 @@ const changePassword = async (req, res) => {
       return res.status(HTTP_CODES.BAD_REQUEST).send(resdata);
     }
   } catch (error) {
-    logger.customLogger.log('error', error);
+    logger.customLogger.log("error", error);
     const resData = customResponse({
       code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message: "Error Occurred",
@@ -1073,163 +1220,176 @@ const changePassword = async (req, res) => {
  * @param {*} req
  * @param {*} res
  */
-const userSearchbyName = async(req, res) => {
+const userSearchbyName = async (req, res) => {
   try {
     let paginatedData;
     const _id = req.userId;
     const user = await User.findById(_id);
-    const orgId = user.organization;
-    const name = sanitizer.value(req.query.name, 'str');
-    const status = sanitizer.value(req.query.status, 'str');
-    const limitNo = sanitizer.value(req?.query?.limit, 'int');
-    const page = sanitizer.value(req?.query?.page, 'int');
-    const getCurrentQuarter = await timePeriod.findOne({
-      organization: orgId,
-      isCurrent: true,
-      isLocked: false,
-      isDeleted: false,
-    },
-    {
-      _id:1,
-      name:1,
-    }).sort({ timestamp:-1 });
-    let currentQuarter = getCurrentQuarter?._id ? getCurrentQuarter._id : null;
-    let  userData = [];
-    if (name.length !== 0){
-    const getUsersConcat = await User.aggregate([
-      { "$project": { "name": { "$concat" : [ "$firstName", " ", "$surname" ] }} },
-      { "$match" : { "name": new RegExp(name, 'i') } } ,
-    ])
-    paginatedData = customPagination(getUsersConcat, limitNo, page);
-    for (let i =0; i< paginatedData.results.length; i++){
-      let findUserFromFirstName = await User.findOne({ _id:paginatedData.results[i], organization: orgId, isActive:status, isDeleted:false }
-    ).populate("teams", { _id: 1, teamName: 1 })
-      .populate("role", {_id:1, role:1 })
-      .populate("reportingManager", { _id:1, firstName:1, surname:1, avatar:1 });
-      if( findUserFromFirstName && findUserFromFirstName?._id ){
-        const getOkrData = await Okr.find({ owner: findUserFromFirstName?._id, type: OKR_TYPES.INDIVIDUAL, quarter: currentQuarter });
-        statsData = await getStatsOfOkr(getOkrData, currentQuarter, orgId);
-        let data = {
-          _id: findUserFromFirstName?._id,
-          firstName: findUserFromFirstName?.firstName,
-          surname: findUserFromFirstName?.surname,
-          email: findUserFromFirstName?.email,
-          role: findUserFromFirstName?.role,
-          teams: findUserFromFirstName?.teams,
-          reportingManager: findUserFromFirstName?.reportingManager,
-          isActive: findUserFromFirstName?.isActive,
-          avatar: findUserFromFirstName?.avatar,
-          okrStats: statsData,
-          designation: findUserFromFirstName?.designation,
-          userName: findUserFromFirstName?.userName,
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
+    const name = sanitizer.value(req.query.name, "str");
+    const status = sanitizer.value(req.query.status, "str");
+    const limitNo = sanitizer.value(req?.query?.limit, "int");
+    const page = sanitizer.value(req?.query?.page, "int");
+    let getUsersConcat, getAllUsersData;
+    const getCurrentQuarter = await timePeriod
+      .findOne(
+        {
+          organization: orgId,
+          isCurrent: true,
+          isLocked: false,
+          isDeleted: false,
+        },
+        {
+          _id: 1,
+          name: 1,
         }
-        userData.push(data);
+      )
+      .sort({ timestamp: -1 });
+    let currentQuarter = getCurrentQuarter?._id ? getCurrentQuarter._id : null;
+    let userData = [];
+    if (name.length !== 0) {
+      getUsersConcat = await User.aggregate([
+        { $project: { name: { $concat: ["$firstName", " ", "$surname"] }, org:"$organization" } },
+        { $match: { name: new RegExp(name, "i") } },
+      ]);
+      paginatedData = customPagination(getUsersConcat, limitNo, page);
+      for (let i = 0; i < paginatedData?.results?.length; i++) {
+        let findUserFromFirstName = await User.findOne({
+          _id: paginatedData?.results[i]?._id,
+          organization: orgId,
+          isActive: status === "true"? true: status === "false"? false : null,
+          isDeleted: false,
+        })
+          .populate("teams", { _id: 1, teamName: 1 })
+          .populate("role", { _id: 1, role: 1 })
+          .populate("reportingManager", {
+            _id: 1,
+            firstName: 1,
+            surname: 1,
+            avatar: 1,
+            designation: 1,
+            phone: 1,
+            email: 1,
+          });
+        if (findUserFromFirstName && findUserFromFirstName?._id) {
+          const getOkrData = await Okr.find({
+            owner: findUserFromFirstName?._id,
+            type: OKR_TYPES.INDIVIDUAL,
+            quarter: currentQuarter,
+          });
+          statsData = await getStatsOfOkrWithoutOkrList(getOkrData, currentQuarter, orgId);
+          let data = {
+            _id: findUserFromFirstName?._id,
+            firstName: findUserFromFirstName?.firstName,
+            surname: findUserFromFirstName?.surname,
+            email: findUserFromFirstName?.email,
+            role: findUserFromFirstName?.role,
+            location: findUserFromFirstName?.location,
+            phone: findUserFromFirstName?.phone,
+            reportingManager: findUserFromFirstName?.reportingManager,
+            isActive: findUserFromFirstName?.isActive,
+            avatar: findUserFromFirstName?.avatar,
+            okrStats: statsData,
+            designation: findUserFromFirstName?.designation,
+            userName: findUserFromFirstName?.userName,
+          };
+          userData.push(data);
+        }
       }
-    }
-
-    /**
-    let findUserFromSurname = await User.find({ organization: orgId, isActive:status, isDeleted:false, surname: new RegExp(name, 'i') })
-      .populate("teams", { _id: 1, teamName: 1 })
-      .populate("role", {_id:1, role:1 })
-      .populate("reportingManager", { _id:1, firstName:1, surname:1, avatar:1 });
-    for( i=0; i<findUserFromSurname.length; i++){
-      const getOkrData = await Okr.find({ owner: findUserFromSurname[i]._id, type: OKR_TYPES.INDIVIDUAL, quarter: currentQuarter });
-      statsData = await getStatsOfOkr(getOkrData, currentQuarter, orgId);
-      let data = {
-        _id: findUserFromSurname[i]._id,
-        firstName: findUserFromSurname[i].firstName,
-        surname: findUserFromSurname[i].surname,
-        role: findUserFromSurname[i].role,
-        teams: findUserFromSurname[i].teams,
-        reportingManager: findUserFromSurname[i].reportingManager,
-        isActive: findUserFromSurname[i].isActive,
-        avatar: findUserFromSurname[i].avatar,
-        okrStats: statsData,
-        designation: findUserFromSurname[i].designation,
-        userName: findUserFromSurname[i].userName,
-      }
-      userData.push(data);
-    }
-    */
-    }
-    else {
-      let getAllUsersData = await User.find({ organization: orgId, isActive:status, isDeleted:false })
-      .populate("teams", { _id: 1, teamName: 1 })
-      .populate("role", {_id:1, role:1 })
-      .populate("reportingManager", { _id:1, firstName:1, surname:1, avatar:1 }).sort({ firstName: 1});
+    } else {
+      getAllUsersData = await User.find({
+        organization: orgId,
+        isActive: status === "true"? true: status === "false"? false : null,
+        isDeleted: false,
+      })
+        .populate("teams", { _id: 1, teamName: 1 })
+        .populate("role", { _id: 1, role: 1 })
+        .populate("reportingManager", {
+          _id: 1,
+          firstName: 1,
+          surname: 1,
+          avatar: 1,
+          designation: 1,
+          phone: 1,
+          email: 1,
+        })
+        .sort({ firstName: 1 });
       paginatedData = customPagination(getAllUsersData, limitNo, page);
-      const getAllUsers = paginatedData.results; 
-      for( i=0; i<getAllUsers?.length; i++){
-        if (getAllUsers && getAllUsers[i]?._id){
-          const getOkrData = await Okr.find({ owner: getAllUsers[i]?._id, type: OKR_TYPES.INDIVIDUAL, quarter: currentQuarter });
-          statsData = await getStatsOfOkr(getOkrData, currentQuarter, orgId);
+      const getAllUsers = paginatedData.results;
+      for (i = 0; i < getAllUsers?.length; i++) {
+        if (getAllUsers && getAllUsers[i]?._id) {
+          const getOkrData = await Okr.find({
+            owner: getAllUsers[i]?._id,
+            type: OKR_TYPES.INDIVIDUAL,
+            quarter: currentQuarter,
+          });
+          statsData = await getStatsOfOkrWithoutOkrList(getOkrData, currentQuarter, orgId);
           let data = {
             _id: getAllUsers[i]?._id,
             firstName: getAllUsers[i]?.firstName,
             surname: getAllUsers[i]?.surname,
             role: getAllUsers[i]?.role,
             email: getAllUsers[i]?.email,
-            teams: getAllUsers[i]?.teams,
+            location: getAllUsers[i]?.location,
+            phone: getAllUsers[i]?.phone,
             reportingManager: getAllUsers[i]?.reportingManager,
             isActive: getAllUsers[i]?.isActive,
             avatar: getAllUsers[i]?.avatar,
             okrStats: statsData,
             designation: getAllUsers[i]?.designation,
             userName: getAllUsers[i]?.userName,
-          }
+          };
           userData.push(data);
         }
       }
     }
-    const count = userData.length;
+    const count = getUsersConcat?.length ? getUsersConcat?.length : getAllUsersData; 
+    const resultCount = userData?.length;
     const totalPagesCount = paginatedData?.pageCount;
     const resData = customResponse({
       code: HTTP_CODES.SUCCESS,
       message: `User Search Successfull`,
-      data: { allMembers: userData, count,totalPagesCount},
+      data: { allMembers: userData,resultCount, count, totalPagesCount },
     });
     return res.status(HTTP_CODES.SUCCESS).send(resData);
   } catch (error) {
-    logger.customLogger.log('error', error.stack);
+    logger.customLogger.log("error", error.stack);
     const resData = customResponse({
       code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message: "Error Occurred",
       err: {},
     });
-    return res.status(HTTP_CODES.INTERNAL_SERVER_ERROR).send(resData)
+    return res.status(HTTP_CODES.INTERNAL_SERVER_ERROR).send(resData);
   }
-}
+};
 
-
-const myDetails = async(req, res) => {
+const myDetails = async (req, res) => {
   try {
     const _id = req.userId;
-    const findUser = await User.findById(_id,
-      {
-        token:0,
-        /**
+    const findUser = await User.findById(_id, {
+      token: 0,
+      /**
         refreshToken:0,
          */
-        otp:0,
-        passwordChanged:0,
-        verified: 0,
-        otpVerified:0,
-        __v:0,
-        password:0,
-        isActive:0,
-        isAdmin:0,
-        isDeleted:0,
-        current_okrs:0,
-        projectDetails:0,
-        lastFeedback:0
-      }
-      ).populate("role", {_id:1 ,role:1})
-      .populate("organization",{_id:1, orgName:1})
-      .populate("teams",{_id:1, teamName:1})
-      .populate("reportingManager",{_id:1, firstName:1, surname:1})
-      .populate("projectLead",{_id:1, firstName:1, surname:1 })
-      .populate("whoReportsMe",{_id:1, firstName:1, surname:1 })
-      ;
+      otp: 0,
+      passwordChanged: 0,
+      verified: 0,
+      otpVerified: 0,
+      __v: 0,
+      password: 0,
+      isActive: 0,
+      isAdmin: 0,
+      isDeleted: 0,
+      current_okrs: 0,
+      projectDetails: 0,
+      lastFeedback: 0,
+    })
+      .populate("role", { _id: 1, role: 1 })
+      .populate("organization", { _id: 1, orgName: 1 })
+      .populate("teams", { _id: 1, teamName: 1 })
+      .populate("reportingManager", { _id: 1, firstName: 1, surname: 1 })
+      .populate("projectLead", { _id: 1, firstName: 1, surname: 1 })
+      .populate("whoReportsMe", { _id: 1, firstName: 1, surname: 1 });
     const resData = customResponse({
       code: HTTP_CODES.SUCCESS,
       message: `User Data Fetched Successfull`,
@@ -1237,25 +1397,24 @@ const myDetails = async(req, res) => {
     });
     return res.status(HTTP_CODES.SUCCESS).send(resData);
   } catch (error) {
-    logger.customLogger.log('error', error);
+    logger.customLogger.log("error", error);
     const resData = customResponse({
       code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message: "Error Occurred",
       err: {},
     });
-    return res.status(HTTP_CODES.INTERNAL_SERVER_ERROR).send(resData)
+    return res.status(HTTP_CODES.INTERNAL_SERVER_ERROR).send(resData);
   }
-}
+};
 
 const login = async (req, res) => {
   try {
-    let  message, data;
-
+    let message, data;
     let googleVerified = false;
-    if (req.body.idToken) {
+    if (req.body.googleAuthToken) {
       await client
         .verifyIdToken({
-          idToken: req.body.idToken,
+          idToken: req.body.googleAuthToken,
           audience: config.GOOGLE_CLIENT_ID,
         })
         .then((res) => {
@@ -1284,65 +1443,64 @@ const login = async (req, res) => {
       });
       return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
     } else {
-        if ( user.isDeleted === true){
-          const resData = customResponse({
-            code: HTTP_CODES.BAD_REQUEST,
-            message: "User is Deactivated",
-          });
-          return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
-        }
-        else if (user.isActive === true && user.isDeleted === false ) {
-          const accessToken = await signToken(user);
-          /**
-          const refreshToken = await getRefreshToken(user);
-           */
-          let doesPasswordMatch;
-          if (!googleVerified || req?.query?.source !== "google") {
-            doesPasswordMatch = await bcrypt.compare(
-              req.body.password,
-              user.password
-            );
-            if (!doesPasswordMatch) {
-              const resData = customResponse({
-                code: HTTP_CODES.BAD_REQUEST,
-                message: "Password Doesn't Match",
-                data,
-              });
-              return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
-            }
+      if (user.isDeleted === true) {
+        const resData = customResponse({
+          code: HTTP_CODES.BAD_REQUEST,
+          message: "User is Deactivated",
+        });
+        return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+      } else if (user.isActive === true && user.isDeleted === false) {
+        const accessToken = await signToken(user);
+        let doesPasswordMatch;
+        if (!googleVerified) {
+          doesPasswordMatch = await bcrypt.compare(
+            req.body.password,
+            user.password
+          );
+          if (!doesPasswordMatch) {
+            const resData = customResponse({
+              code: HTTP_CODES.BAD_REQUEST,
+              message: "Password Doesn't Match",
+              data,
+            });
+            return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
           }
-          if( doesPasswordMatch || ( googleVerified && req?.query?.source === "google")){
-            let googleId = req?.body?.googleid ? req.body.googleid : null;
-            if (googleId) {
-              const updateGoogleID = await User.findOneAndUpdate(
-                { email: req.body.email },
-                {
-                  google_id: googleId,
-                },
-                { new: true }
-              );
-            }
-            code = HTTP_CODES.SUCCESS;
-            const updateToken = await User.findOneAndUpdate(
+        }
+        if (
+          doesPasswordMatch ||
+          googleVerified ||
+          req?.query?.source === "google"
+        ) {
+          let googleId = req?.body?.googleid ? req.body.googleid : null;
+          if (googleId) {
+            const updateGoogleID = await User.findOneAndUpdate(
               { email: req.body.email },
               {
-                $push: {
-                  token: accessToken,
-                },
+                google_id: googleId,
               },
               { new: true }
             );
+          }
+          code = HTTP_CODES.SUCCESS;
+          const updateToken = await User.findOneAndUpdate(
+            { email: req.body.email },
+            {
+              $push: {
+                token: accessToken,
+              },
+            },
+            { new: true }
+          );
           message = "Logged-In Successfully!";
           const resData = customResponse({
             code: HTTP_CODES.SUCCESS,
             message,
-            data: {accessToken},
+            data: { accessToken },
           });
-          logger.customLogger.log('info', 'Login Success');
+          logger.customLogger.log("info", "Login Success");
           return res.status(HTTP_CODES.SUCCESS).send(resData);
         }
-      }
-      else{
+      } else {
         const resData = customResponse({
           code: HTTP_CODES.BAD_REQUEST,
           message: `You Can't Login. Please Contact Your Org Admin.`,
@@ -1352,7 +1510,7 @@ const login = async (req, res) => {
       }
     }
   } catch (error) {
-    logger.customLogger.log('error', `${error}`);
+    logger.customLogger.log("error", `${error}`);
     const resData = customResponse({
       code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message: "Error Occurred",
@@ -1365,11 +1523,15 @@ const getLoggedinDetails = async (req, res) => {
   try {
     const userId = req.userId;
     const role = req.decode.role;
-    const getRole = await userType.findById(role,{_id:1, role:1});
-    let userDetail={};
-    if ( getRole.role && (getRole.role === ROLES.ADMIN || getRole.role === ROLES.USER)){
-      const getData = await User.findById(userId).populate("organization",{_id:1, orgName:1})
-        .populate("role", {_id:1, role:1} );
+    const getRole = await userType.findById(role, { _id: 1, role: 1 });
+    let userDetail = {};
+    if (
+      getRole.role &&
+      (getRole.role === ROLES.ADMIN || getRole.role === ROLES.USER)
+    ) {
+      const getData = await User.findById(userId)
+        .populate("organization", { _id: 1, orgName: 1 , logo:1, logoUrl:1,})
+        .populate("role", { _id: 1, role: 1 });
       userDetail.firstName = getData.firstName;
       userDetail.email = getData.email;
       userDetail.role = getData.role;
@@ -1385,11 +1547,13 @@ const getLoggedinDetails = async (req, res) => {
         message: "Data fetched Successfully",
         data: userDetail,
       });
-      logger.customLogger.log('info', 'Logged in User Details Fetched');
+      logger.customLogger.log("info", "Logged in User Details Fetched");
       return res.status(HTTP_CODES.SUCCESS).send(resData);
-    }
-    else if(getRole.role && (getRole.role === ROLES.SUPER_ADMIN) ){
-      const getData = await User.findById(userId).populate("role", {_id:1, role:1});
+    } else if (getRole.role && getRole.role === ROLES.SUPER_ADMIN) {
+      const getData = await User.findById(userId).populate("role", {
+        _id: 1,
+        role: 1,
+      });
       userDetail.firstName = getData.firstName;
       userDetail.email = getData.email;
       userDetail.role = getData.role;
@@ -1402,14 +1566,13 @@ const getLoggedinDetails = async (req, res) => {
         message: "Data fetched Successfully",
         data: userDetail,
       });
-      logger.customLogger.log('info', 'Login Details Fetched Super Admin');
+      logger.customLogger.log("info", "Login Details Fetched Super Admin");
       return res.status(HTTP_CODES.SUCCESS).send(resData);
-    }
-    else{
-      throw 'Failed to fetch User-details'
+    } else {
+      throw "Failed to fetch User-details";
     }
   } catch (error) {
-    logger.customLogger.log('error', `${error}`);
+    logger.customLogger.log("error", `${error}`);
     const resData = customResponse({
       code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message: "Error Occurred",
@@ -1417,12 +1580,17 @@ const getLoggedinDetails = async (req, res) => {
     });
     return res.status(HTTP_CODES.INTERNAL_SERVER_ERROR).send(resData);
   }
-}
+};
 
 const createUserWhileImport = async (req, res) => {
   const _id = req.userId;
-  const adminData = await User.findById(_id,{_id:0, firstName:1, surname:1, organization:1});
-  const orgId = adminData.organization.toString();
+  const adminData = await User.findById(_id, {
+    _id: 0,
+    firstName: 1,
+    surname: 1,
+    organization: 1,
+  });
+  const orgId = req?.query?.orgid ? req?.query?.orgid : adminData.organization.toString();
   /*
   make sure imported data from excel is an array in array of user data with email should be in email field
   and First Name should be in fistName field & Surname in surname field.. check below example
@@ -1433,35 +1601,52 @@ const createUserWhileImport = async (req, res) => {
   [ 'Joel', 'Vinay', 'joel@valuebound.com' ]
 ]
   */
- /**
-  * Adding Delay of 5 sec
-  */
+  /**
+   * Adding Delay of 5 sec
+   */
   function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
   try {
-    const getAdminRoleId = await userType.findOne({role: ROLES.ADMIN},{_id:1, role:1});
-    const defaultManager = await User.findOne({ organization:orgId, role: getAdminRoleId._id },{_id:1});
+    const getAdminRoleId = await userType.findOne(
+      { role: ROLES.ADMIN },
+      { _id: 1, role: 1 }
+    );
+    const defaultManager = await User.findOne(
+      { organization: orgId, role: getAdminRoleId._id },
+      { _id: 1 }
+    );
     let UsersResult = [];
     let importError = [];
     let successImportData = [];
     /**
      * get user role id from userTypes
      */
-    const getUserRoleId = await userType.findOne({role: ROLES.USER},{_id:1, role:1});
+    const getUserRoleId = await userType.findOne(
+      { role: ROLES.USER },
+      { _id: 1, role: 1 }
+    );
 
-    async function getReportingManager(name, email){
-      if (name && email){
+    async function getReportingManager(name, email) {
+      if (name && email) {
         let splitName = name.split(" ");
         let splitNameLength = splitName.length;
         let fName = splitName[0];
         let sname = splitName[splitNameLength - 1];
-        const findUserByEmail = await User.findOne({ organization: orgId, isActive:true, isDeleted:false, email: email},{_id:1})
+        const findUserByEmail = await User.findOne(
+          {
+            organization: orgId,
+            isActive: true,
+            isDeleted: false,
+            email: email,
+          },
+          { _id: 1 }
+        );
         /**
         const findUserFirstName = await User.find({ organization: orgId, isActive:true, isDeleted:false, firstName: new RegExp(fName, 'i') },{_id:1});
         const findUserSurname = await User.find({ organization: orgId, isActive:true, isDeleted:false, surname: new RegExp(sname, 'i') },{_id:1});
          */
-        if (!findUserByEmail || findUserByEmail === null){
+        if (!findUserByEmail || findUserByEmail === null) {
           try {
             let randomPassword = nanoid(10);
             const getAvatar = await getAvatarUrl(`${fName}${sname}`);
@@ -1478,29 +1663,38 @@ const createUserWhileImport = async (req, res) => {
             /**
              * Add User in Who Reports Me Array
              */
-            const updateWhoReportsMe = await User.findByIdAndUpdate( createUser.reportingManager,
-            {
-              $push: {
-                whoReportsMe: createUser._id,
+            const updateWhoReportsMe = await User.findByIdAndUpdate(
+              createUser.reportingManager,
+              {
+                $push: {
+                  whoReportsMe: createUser._id,
+                },
               },
-            },
-            {
-              new: true
-            });
+              {
+                new: true,
+              }
+            );
             UsersResult.push({ message: createUser.email });
-            const emailMessage = await generateMessageInviteTemplate(createUser, adminData, randomPassword);
-            await sendEmail(createUser.email, `GROW10X: Account Created`, emailMessage);
+            const emailMessage = await generateMessageInviteTemplate(
+              createUser,
+              adminData,
+              randomPassword
+            );
+            await sendEmail(
+              createUser.email,
+              `GROW10X: Account Created`,
+              emailMessage
+            );
             return createUser._id.toString();
           } catch (error) {
             importError.push({
               message: `Account already created for email, ${error?.keyValue?.email}`,
             });
           }
-        }
-        else if(findUserByEmail?._id){
+        } else if (findUserByEmail?._id) {
           return findUserByEmail?._id.toString();
         }
-      }else {
+      } else {
         return String(defaultManager._id);
       }
     }
@@ -1512,15 +1706,17 @@ const createUserWhileImport = async (req, res) => {
     }
     let path = __basedir + "/uploads/ExcelSheets/" + req.file.filename;
     let fileData;
-    if (req.file.mimetype.includes("text/csv")){
+    if (req.file.mimetype.includes("text/csv")) {
       /**
        * For CSV File
        */
       fileData = await csv().fromFile(path);
 
-      for (let i =0; i<fileData.length; i++){
+      for (let i = 0; i < fileData.length; i++) {
         let randomPassword = nanoid(10);
-        const getAvatar = await getAvatarUrl(`${fileData[i].firstName}${fileData[i].surname}`);
+        const getAvatar = await getAvatarUrl(
+          `${fileData[i].firstName}${fileData[i].surname}`
+        );
 
         let userData = {
           firstName: fileData[i].firstName,
@@ -1529,16 +1725,19 @@ const createUserWhileImport = async (req, res) => {
           organization: orgId,
           password: randomPassword,
           role: getUserRoleId._id.toString(),
-          reportingManager: await getReportingManager(fileData[i]?.reportingManager, fileData[i]?.managerEmail),
+          reportingManager: await getReportingManager(
+            fileData[i]?.reportingManager,
+            fileData[i]?.managerEmail
+          ),
           avatar: getAvatar,
         };
         let arrayOfJoiError = [];
-          const { error } = importUserSchema.validate(userData);
-          if (error)
-            arrayOfJoiError.push({
-              index: i,
-              validationError: error?.details.map((el) => el.message),
-            });
+        const { error } = importUserSchema.validate(userData);
+        if (error)
+          arrayOfJoiError.push({
+            index: i,
+            validationError: error?.details.map((el) => el.message),
+          });
         if (arrayOfJoiError.length) {
           let code = 206;
           let errorName = "joi-error";
@@ -1563,15 +1762,17 @@ const createUserWhileImport = async (req, res) => {
           /**
            * Add User in Who Reports Me Array
            */
-          const updateWhoReportsMe = await User.findByIdAndUpdate( result.reportingManager,
+          const updateWhoReportsMe = await User.findByIdAndUpdate(
+            result.reportingManager,
             {
               $push: {
                 whoReportsMe: result._id,
               },
             },
             {
-              new: true
-            });
+              new: true,
+            }
+          );
           UsersResult.push({ index: i, message: result.email });
           /**
           successImportData.push({
@@ -1581,8 +1782,16 @@ const createUserWhileImport = async (req, res) => {
             password: randomPassword,
           });
            */
-          const emailMessage = await generateMessageInviteTemplate(result, adminData, randomPassword);
-          await sendEmail(result.email, `GROW10X: Account Created`, emailMessage);
+          const emailMessage = await generateMessageInviteTemplate(
+            result,
+            adminData,
+            randomPassword
+          );
+          await sendEmail(
+            result.email,
+            `GROW10X: Account Created`,
+            emailMessage
+          );
         } catch (err) {
           importError.push({
             index: i,
@@ -1590,16 +1799,17 @@ const createUserWhileImport = async (req, res) => {
           });
         }
       }
-    }
-    else{
+    } else {
       /**
        * For Excel File. .xlsx
        */
       fileData = await readXlsxFile(path);
       fileData.shift();
-      for (let k = 0; k < fileData.length; k++){
-      let randomPassword = nanoid(10);
-      const getAvatar = await getAvatarUrl(`${fileData[k][0]}${fileData[k][1]}`);
+      for (let k = 0; k < fileData.length; k++) {
+        let randomPassword = nanoid(10);
+        const getAvatar = await getAvatarUrl(
+          `${fileData[k][0]}${fileData[k][1]}`
+        );
         let userData = {
           firstName: fileData[k][0],
           surname: fileData[k][1],
@@ -1607,8 +1817,11 @@ const createUserWhileImport = async (req, res) => {
           organization: orgId,
           password: randomPassword,
           role: getUserRoleId._id.toString(),
-          reportingManager: await getReportingManager(fileData[k][3], fileData[k][4]),
-          avatar: getAvatar
+          reportingManager: await getReportingManager(
+            fileData[k][3],
+            fileData[k][4]
+          ),
+          avatar: getAvatar,
         };
         let arrayOfJoiError = [];
         const { error } = importUserSchema.validate(userData);
@@ -1639,15 +1852,17 @@ const createUserWhileImport = async (req, res) => {
           /**
            * Add User in Who Reports Me Array
            */
-          const updateWhoReportsMe = await User.findByIdAndUpdate( result.reportingManager,
+          const updateWhoReportsMe = await User.findByIdAndUpdate(
+            result.reportingManager,
             {
               $push: {
                 whoReportsMe: result._id,
               },
             },
             {
-              new: true
-            });
+              new: true,
+            }
+          );
           UsersResult.push({ index: k, message: result.email });
           /**
           successImportData.push({
@@ -1657,8 +1872,16 @@ const createUserWhileImport = async (req, res) => {
             password: randomPassword,
           });
            */
-          const emailMessage = await generateMessageInviteTemplate(result, adminData, randomPassword);
-          await sendEmail(result.email, `GROW10X: Account Created`, emailMessage);
+          const emailMessage = await generateMessageInviteTemplate(
+            result,
+            adminData,
+            randomPassword
+          );
+          await sendEmail(
+            result.email,
+            `GROW10X: Account Created`,
+            emailMessage
+          );
         } catch (err) {
           importError.push({
             index: k,
@@ -1700,91 +1923,137 @@ const createUserWhileImport = async (req, res) => {
         ? { errorName: "mongo-error", importError }
         : { errorName: null, importError: [] },
     });
-
   } catch (error) {
-    logger.customLogger.log('error', error);
+    logger.customLogger.log("error", error);
     let message = "Failed To Upload File";
     return res.status(HTTP_CODES.INTERNAL_SERVER_ERROR).send({
-      code:HTTP_CODES.INTERNAL_SERVER_ERROR,
+      code: HTTP_CODES.INTERNAL_SERVER_ERROR,
       message,
     });
   }
 };
 
-const activateUser = async(req, res) => {
-try {
-  const _id = req.userId;
-  const user = await User.findById(_id);
-  const orgId = user.organization;
-  const activeUserId = sanitizer.value(req.params.userid, 'str');
-  const getAdminRoleId = await userType.findOne({role: ROLES.ADMIN},{_id:1, role:1});
-  const defaultManager = await User.findOne({ organization:orgId, role: getAdminRoleId._id },{_id:1});
-  const activateUserfromDb = await User.findById(activeUserId);
+const activateUser = async (req, res) => {
+  try {
+    const _id = req.userId;
+    const user = await User.findById(_id);
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
+    const activeUserId = sanitizer.value(req.params.userid, "str");
+    const getAdminRoleId = await userType.findOne(
+      { role: ROLES.ADMIN },
+      { _id: 1, role: 1 }
+    );
+    const defaultManager = await User.findOne(
+      { organization: orgId, role: getAdminRoleId._id },
+      { _id: 1 }
+    );
+    const activateUserfromDb = await User.findById(activeUserId);
 
-  if (!activateUserfromDb && activateUserfromDb !== null){
-    const resData = customResponse({
-      code: HTTP_CODES.BAD_REQUEST,
-      message: `User Not Found`
-    });
-    return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
-  }
-  else if (activateUserfromDb.isActive === true){
-    let message = "User is Already Active";
-    const resData = customResponse({
-      code: HTTP_CODES.BAD_REQUEST,
-      message
-    });
-    return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
-  }
-  else if (activateUserfromDb.isDeleted === true){
-    let message = "User is Already Deleted";
-    const resData = customResponse({
-      code: HTTP_CODES.BAD_REQUEST,
-      message
-    });
-    return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
-  }
+    if (!activateUserfromDb && activateUserfromDb !== null) {
+      const resData = customResponse({
+        code: HTTP_CODES.BAD_REQUEST,
+        message: `User Not Found`,
+      });
+      return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+    } else if (activateUserfromDb.isActive === true) {
+      let message = "User is Already Active";
+      const resData = customResponse({
+        code: HTTP_CODES.BAD_REQUEST,
+        message,
+      });
+      return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+    } else if (activateUserfromDb.isDeleted === true) {
+      let message = "User is Already Deleted";
+      const resData = customResponse({
+        code: HTTP_CODES.BAD_REQUEST,
+        message,
+      });
+      return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+    }
 
-  const activateUser = await User.findByIdAndUpdate(activeUserId,
-    {
-      isActive: true,
-      reportingManager: defaultManager._id,
-    },
-    {
-      new: true
-    })
-
-  if(activateUser && activateUser !== null){
-    /**
-    * Add User in Who Reports Me Array
-    */
-    const updateWhoReportsMe = await User.findByIdAndUpdate( defaultManager._id,
+    const activateUser = await User.findByIdAndUpdate(
+      activeUserId,
       {
-        $push: {
-          whoReportsMe: activateUser._id,
-        },
+        isActive: true,
+        reportingManager: defaultManager._id,
       },
       {
-        new: true
+        new: true,
       }
     );
+
+    if (activateUser && activateUser !== null) {
+      /**
+       * Add User in Who Reports Me Array
+       */
+      const updateWhoReportsMe = await User.findByIdAndUpdate(
+        defaultManager._id,
+        {
+          $push: {
+            whoReportsMe: activateUser._id,
+          },
+        },
+        {
+          new: true,
+        }
+      );
+    }
+    const resData = customResponse({
+      code: HTTP_CODES.SUCCESS,
+      message: `${activateUser.firstName} is Activated Successfully.`,
+      data: activateUser,
+    });
+    return res.status(HTTP_CODES.SUCCESS).send(resData);
+  } catch (error) {
+    logger.customLogger.log("error", error);
+    let message = "Failed to Activate the User";
+    const resData = customResponse({
+      code: HTTP_CODES.BAD_REQUEST,
+      message: message,
+    });
+    return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
   }
-  const resData = customResponse({
-    code: HTTP_CODES.SUCCESS,
-    message: `${activateUser.firstName} is Activated Successfully.`,
-    data: activateUser,
-  });
-  return res.status(HTTP_CODES.SUCCESS).send(resData);
-} catch (error) {
-  logger.customLogger.log('error', error);
-  let message = "Failed to Activate the User";
-  const resData = customResponse({
-    code: HTTP_CODES.BAD_REQUEST,
-    message: message,
-  });
-  return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
-}
-}
+};
+
+/**
+ * Search by Name. Only Active Users to find user's OKR (for parent OKR)
+ */
+const searchByName = async (req, res) => {
+  try {
+    const _id = req.userId;
+    const user = await User.findById(_id);
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
+    const name = sanitizer.value(req.body.name, "str");
+
+    let findUserFromName = await User.find({ 
+      _id: {$ne: _id},
+      organization: orgId, 
+      isActive: true, 
+      isDeleted:false, 
+      $or: [ { surname: new RegExp(name, 'i') }, { firstName: new RegExp(name, 'i') } ],
+    },
+    {
+      _id: 1,
+      firstName: 1,
+      surname: 1,
+      avatar: 1,
+    });
+
+    const resData = customResponse({
+      code: HTTP_CODES.SUCCESS,
+      message: `${findUserFromName.length} User's Found. Search Successfull`,
+      data: findUserFromName,
+    });
+    return res.status(HTTP_CODES.SUCCESS).send(resData);
+  } catch (error) {
+    logger.customLogger.log("error", error);
+    const resData = customResponse({
+      code: HTTP_CODES.BAD_REQUEST,
+      message: `Failed To Search User`,
+    });
+    return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+  }
+};
 
 module.exports = {
   loginOld,
@@ -1806,4 +2075,5 @@ module.exports = {
   getLoggedinDetails,
   createUserWhileImport,
   activateUser,
+  searchByName,
 };

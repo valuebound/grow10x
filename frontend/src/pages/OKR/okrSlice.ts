@@ -8,10 +8,13 @@ export interface okrSliceState {
   data: any;
   aboutData: any;
   companyData: any;
+  companyDataList: any,
   updateCompanyOkrs: any;
   detailsData: any;
   timePeriods: any[];
   activityFeed: any;
+  statusAF: "idle" | "loading" | "failed";
+  userData: any[];
   status: "idle" | "loading" | "failed";
   error: string | null;
 }
@@ -201,7 +204,6 @@ export const getCompanyAbout = createAsyncThunk(
 export const updateCompanyAbout = createAsyncThunk(
   "okr/updateAbout",
   async (payload: any, { rejectWithValue }) => {
-    console.log(payload);
     try {
       const res = await axios.patch(
         `/myorganization/company/updatedetails`,
@@ -214,14 +216,53 @@ export const updateCompanyAbout = createAsyncThunk(
   }
 );
 
+export const deleteCompanyLogo = createAsyncThunk(
+  "okr/updateLogo",
+  async (logo: any, { rejectWithValue }) => {
+    try {
+      const res = await axios.delete(`/myorganization/logo/${logo}`);
+      return res.data;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const searchUser = createAsyncThunk(
+  "user/searchUser",
+  async (payload: any, { rejectWithValue }) => {
+    try {
+      const res = await axios.post(`/user/search`, payload);
+      return res.data;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const searchUserOkr = createAsyncThunk(
+  "/okr/search",
+  async (payload: any, { rejectWithValue }) => {
+    try {
+      const res = await axios.post(`/okr/search`, payload);
+      return res.data;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 const initialState: okrSliceState = {
   data: { okrs: [] },
   companyData: { okrs: [] },
+  companyDataList: { okrs: [] },
   aboutData: {},
   updateCompanyOkrs: { okrs: [] },
   detailsData: {},
   timePeriods: [],
+  userData: [],
   activityFeed: { activity: [] },
+  statusAF: "idle",
   status: "idle",
   error: null,
 };
@@ -276,12 +317,16 @@ export const okrSlice = createSlice({
       });
 
     builder
+      .addCase(getKrFeedbacksAsync.pending, (state, action) => {
+        state.statusAF = "loading";
+      })
       .addCase(getKrFeedbacksAsync.fulfilled, (state, action) => {
-        state.status = "idle";
+        state.statusAF = "idle";
         state.activityFeed = action.payload.data || {};
       })
       .addCase(getKrFeedbacksAsync.rejected, (state, action) => {
-        state.status = "failed";
+        state.statusAF = "failed";
+        state.activityFeed = { activity: [] };
         state.error = String(action.payload);
       });
 
@@ -304,9 +349,20 @@ export const okrSlice = createSlice({
       .addCase(updateCompanyAbout.fulfilled, (state, action) => {
         state.status = "idle";
         state.aboutData = action.payload.data;
-        console.log(action.payload.data);
       })
       .addCase(updateCompanyAbout.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = String(action.payload);
+      });
+    builder
+      .addCase(deleteCompanyLogo.pending, (state, action) => {
+        state.status = "loading";
+      })
+      .addCase(deleteCompanyLogo.fulfilled, (state, action) => {
+        state.status = "idle";
+        state.aboutData = action.payload.data;
+      })
+      .addCase(deleteCompanyLogo.rejected, (state, action) => {
         state.status = "failed";
         state.error = String(action.payload);
       });
@@ -329,10 +385,36 @@ export const okrSlice = createSlice({
       .addCase(updateCompanyOkrAsync.fulfilled, (state, action) => {
         state.status = "idle";
         state.updateCompanyOkrs = action.payload.data;
-        console.log(action.payload.data);
       })
       .addCase(updateCompanyOkrAsync.rejected, (state, action) => {
         state.status = "failed";
+        state.error = String(action.payload);
+      });
+
+    builder
+      .addCase(searchUser.pending, (state, action) => {
+        state.status = "loading";
+      })
+      .addCase(searchUser.fulfilled, (state, action) => {
+        state.status = "idle";
+        state.userData = action.payload.data;
+      })
+      .addCase(searchUser.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = String(action.payload);
+      });
+
+    builder
+      .addCase(searchUserOkr.pending, (state, action) => {
+        // state.status = "loading";
+      })
+      .addCase(searchUserOkr.fulfilled, (state, action) => {
+        state.status = "idle";
+        state.companyDataList = action.payload.data;
+      })
+      .addCase(searchUserOkr.rejected, (state, action) => {
+        state.status = "failed";
+        state.companyDataList = { okrs: [] } ;
         state.error = String(action.payload);
       });
   },

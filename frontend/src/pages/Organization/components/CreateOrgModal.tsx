@@ -61,9 +61,7 @@ const CreateOrgModal: React.FC<CreateOrgModalProps> = ({
         }
       });
       await dispatch(getOrganizationListAsync());
-    } catch (error) {
-      console.log("error signingup org", error);
-    }
+    } catch (error) {}
   };
 
   return (

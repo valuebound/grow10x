@@ -11,10 +11,9 @@ type StepChartProps = {
 
 const StepChart: React.FC<StepChartProps> = ({ timePeriods }) => {
   const { lineChartData } = useAppSelector(selectDashboard);
-  const [data, setData] = useState(lineChartData);
   const [chartLoadin, setChartLoading] = useState(false);
 
-  const getChartData = () => {
+  const getData: any = () => {
     setChartLoading(true);
     const currentTime = timePeriods.filter((time: any) => time.isCurrent)[0];
     const start_date = moment(currentTime?.startDate).format("YYYY-MM-DD");
@@ -58,10 +57,11 @@ const StepChart: React.FC<StepChartProps> = ({ timePeriods }) => {
         }
       }
     }
-
-    setData(tempData);
     setChartLoading(false);
+    return tempData;
   };
+
+  const data = useMemo(()=> getData(), [lineChartData]);
 
   const config = {
     data,
@@ -99,13 +99,8 @@ const StepChart: React.FC<StepChartProps> = ({ timePeriods }) => {
     },
   };
 
-  useMemo(() => {
-    getChartData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineChartData]);
-
   // @ts-ignore
   return <Line {...config} height={280} loading={chartLoadin} />;
 };
 
-export default StepChart;
+export default React.memo(StepChart);

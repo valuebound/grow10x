@@ -117,7 +117,7 @@ describe("Testing People Module", () => {
 
   it("testing buttons", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "" }), { target: { value: "test" } });
-    fireEvent.click(screen.getByRole("button", { name: "search" }));
+    // fireEvent.click(screen.getByRole("button", { name: "search" }));
     fireEvent.click(screen.getByRole("button", { name: "close-circle" }));
     fireEvent.click(screen.getByRole("button", { name: "left" }));
     fireEvent.click(screen.getByRole("button", { name: "right" }));

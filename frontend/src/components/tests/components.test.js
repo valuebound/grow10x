@@ -13,6 +13,9 @@ import CustomProgress from "../CustomProgress";
 import Loading from "../Loading";
 import Navbar from "../Navbar";
 import PrivateRoute from "../PrivateRoute";
+import CustomizedRole from "../CustomizedRole";
+import PopoverContent from "../PopoverContent";
+import StatusEmojis from "../StatusEmojis";
 
 describe("Testing Compomnents Directory", () => {
   const middlewares = [thunk];
@@ -43,7 +46,10 @@ describe("Testing Compomnents Directory", () => {
   });
 
   it("renders AppSkeleton with Super Admin component", () => {
-    window.localStorage.setItem("okr_vb_user", JSON.stringify({ role: "SUPER_ADMIN" }));
+    window.localStorage.setItem(
+      "okr_vb_user",
+      JSON.stringify({ role: "SUPER_ADMIN" })
+    );
     render(
       <MemoryRouter>
         <Provider store={store}>
@@ -53,7 +59,10 @@ describe("Testing Compomnents Directory", () => {
     );
   });
   it("renders AppSkeleton with User component", () => {
-    window.localStorage.setItem("okr_vb_user", JSON.stringify({ role: "USER" }));
+    window.localStorage.setItem(
+      "okr_vb_user",
+      JSON.stringify({ role: "USER" })
+    );
     render(
       <MemoryRouter>
         <Provider store={store}>
@@ -63,7 +72,10 @@ describe("Testing Compomnents Directory", () => {
     );
   });
   it("renders AppSkeleton with Admin component", () => {
-    window.localStorage.setItem("okr_vb_user", JSON.stringify({ role: "ADMIN" }));
+    window.localStorage.setItem(
+      "okr_vb_user",
+      JSON.stringify({ role: "ADMIN" })
+    );
     render(
       <MemoryRouter>
         <Provider store={store}>
@@ -81,6 +93,18 @@ describe("Testing Compomnents Directory", () => {
     render(<Loading />);
   });
 
+  it("renders CustomizedRole component", () => {
+    render(<CustomizedRole />);
+  });
+
+  it("renders PopoverContent component", () => {
+    render(<PopoverContent />);
+  });
+
+  it("renders StatusEmojis component", () => {
+    render(<StatusEmojis />);
+  });
+
   it("renders Navbar with role Super Admin component", () => {
     render(
       <MemoryRouter>
@@ -91,6 +115,8 @@ describe("Testing Compomnents Directory", () => {
               firstName: "Admin",
               avatar: "https://test.com/",
             }}
+            screen={{ xs: false }}
+            setCollapsed={() => jest.fn()}
           />
         </Provider>
       </MemoryRouter>

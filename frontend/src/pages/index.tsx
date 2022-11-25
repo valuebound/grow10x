@@ -1,4 +1,3 @@
-import ChangePassword from "./ChangePassword";
 import SetPassword from "./SetPassword";
 import Home from "./Home";
 import Login from "./Login";
@@ -11,10 +10,11 @@ import TimePeriods from "./TimePeriod";
 import Profile from "./Profile";
 import Unauthorized from "./Unauthorized";
 import LandingPage from "./LandingPage";
+import Setting from "./Setting";
+import ForgotPassword from "./ForgotPassword";
 
 export {
   Login,
-  ChangePassword,
   SetPassword,
   Organization,
   Home,
@@ -25,5 +25,7 @@ export {
   People,
   Profile,
   Unauthorized,
-  LandingPage
+  LandingPage,
+  Setting,
+  ForgotPassword,
 };

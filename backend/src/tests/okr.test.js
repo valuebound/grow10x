@@ -258,7 +258,6 @@ describe("user-type test", () => {
         );
       });
   });
-  ///////////////////////////////////////////////////////////////
 
   it("Update isDelete true of time period", async () => {
     await TimePeriod.findByIdAndUpdate(timePeriodId, { isDeleted: true });
@@ -470,8 +469,7 @@ describe("user-type test", () => {
       });
   });
 
-  ///////////////////////////////////////////////////////////////
-  let okr_id, activity_feed_kr_id;
+  let okr_id, kr_id;
   it("POST /api/okr (Create Okr) ", async () => {
     let createOkr = {
       objective: "ADMIN OKR TEST!",
@@ -499,7 +497,7 @@ describe("user-type test", () => {
       .expect(201)
       .then((response) => {
         okr_id = response.body.data._id;
-        activity_feed_kr_id = response.body.data.krs[0]._id;
+        kr_id = response.body.data.krs[0]._id;
         expect(response.body.status).toEqual("success");
         expect(response.body.message).toEqual(`OKR created successfully!`);
       });
@@ -682,7 +680,8 @@ describe("user-type test", () => {
       });
   });
 
-  it("PUT /api/okr/addkrs/:okrid (update add krs with invalid data value) ", async () => {
+  let new_krs_id;
+  it("PUT /api/okr/addkrs/:okrid (update add krs) ", async () => {
     let addKrs = {
       krs: [
         {
@@ -704,6 +703,8 @@ describe("user-type test", () => {
       .set(headers)
       .expect(200)
       .then((response) => {
+        new_krs_id =
+          response.body.data.krs[response.body.data.krs.length - 1]._id;
         expect(response.body.status).toEqual("success");
         expect(response.body.message).toEqual(`Added KRS Successfully!`);
       });
@@ -726,20 +727,330 @@ describe("user-type test", () => {
       });
   });
 
+  it("PUT /api/okr/checkin/:krId (update checkIn and comment by krId) ", async () => {
+    let krsBody = {
+      comment: {
+        text: "NEW FORMAT",
+        commentedBy: constants.admin_id,
+      },
+      currentValue: 10,
+    };
+
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .put(`/api/okr/checkin/${kr_id}`)
+      .send(krsBody)
+      .set(headers)
+      .expect(200)
+      .then((response) => {
+        console.log(kr_id);
+        expect(response.body.status).toEqual("success");
+        expect(response.body.message).toEqual(`Checkin Done`);
+      });
+  });
+
+  it("PUT /api/okr/checkin/:krId (update checkIn and comment by invalid krId) ", async () => {
+    let krsBody = {};
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .put(`/api/okr/checkin/${kr_id}1`)
+      .send(krsBody)
+      .set(headers)
+      .expect(400)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(`Invalid okr id Provided`);
+      });
+  });
+
+  let comment_id;
+  it("PATCH /api/okr/addcomment/:krid (update add comment) ", async () => {
+    let commentBody = {
+      comment: {
+        text: "comment by admin testng",
+        commentedBy: constants.admin_id,
+      },
+    };
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .patch(`/api/okr/addcomment/${kr_id}`)
+      .send(commentBody)
+      .set(headers)
+      .expect(200)
+      .then((response) => {
+        comment_id =
+          response.body.data.krs[0].comment[
+            response.body.data.krs[0].comment.length - 1
+          ]._id;
+        expect(response.body.status).toEqual("success");
+        expect(response.body.message).toEqual(`Comment Added`);
+      });
+  });
+
+  it("PATCH /api/okr/updatecomment/:krid (update added comment) ", async () => {
+    let updateComment = {
+      text: "comment update",
+      commentid: comment_id,
+    };
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .patch(`/api/okr/updatecomment/${kr_id}`)
+      .send(updateComment)
+      .set(headers)
+      .expect(200)
+      .then((response) => {
+        expect(response.body.status).toEqual("success");
+        expect(response.body.message).toEqual(`Comment Updated`);
+      });
+  });
+
+  it("Update isLocked true of time period", async () => {
+    await TimePeriod.findByIdAndUpdate(timePeriodId, {
+      isLocked: true,
+    });
+  });
+
+  it("DELETE /api/okr/deletekr/:okrid/:krsid (delete single kr with okrId and krId locked quarter) ", async () => {
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .delete(`/api/okr/deletekr/${okr_id}/${kr_id}`)
+      .set(headers)
+      .expect(400)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(
+          `Quarter Locked You Cannot Delete it!`
+        );
+      });
+  });
+
+  it("Update isLocked false of time period", async () => {
+    await TimePeriod.findByIdAndUpdate(timePeriodId, {
+      isLocked: false,
+    });
+  });
+
+  it("DELETE /api/okr/deletekr/:okrid/:krsid (delete single kr with okrId and krId) ", async () => {
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .delete(`/api/okr/deletekr/${okr_id}/${kr_id}`)
+      .set(headers)
+      .expect(200)
+      .then((response) => {
+        expect(response.body.status).toEqual("success");
+        expect(response.body.message).toEqual(`key result is deleted`);
+      });
+  });
+
+  it("DELETE /api/okr/deletekr/:okrid/:krsid (delete single kr with invalid okrId and krId) ", async () => {
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .delete(`/api/okr/deletekr/${okr_id}/${kr_id}1`)
+      .set(headers)
+      .expect(400)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(`Invalid okr/krs id Provided`);
+      });
+  });
+
+  it("Update isLocked true of time period", async () => {
+    await TimePeriod.findByIdAndUpdate(timePeriodId, {
+      isLocked: true,
+    });
+  });
+
+  it("DELETE /api/okr/deleteokr/:okrid (delete okr with okrId locked quarter) ", async () => {
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .delete(`/api/okr/deleteokr/${okr_id}`)
+      .set(headers)
+      .expect(400)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(
+          `Quarter Locked You Cannot Delete it!`
+        );
+      });
+  });
+
+  it("Update isLocked false of time period", async () => {
+    await TimePeriod.findByIdAndUpdate(timePeriodId, {
+      isLocked: false,
+    });
+  });
+
+  it("DELETE /api/okr/deleteokr/:okrid (delete okr with okrId) ", async () => {
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .delete(`/api/okr/deleteokr/${okr_id}`)
+      .set(headers)
+      .expect(200)
+      .then((response) => {
+        expect(response.body.status).toEqual("success");
+        expect(response.body.message).toEqual(
+          `${response.body.data.objective} Objective is deleted`
+        );
+      });
+  });
+
+  it("DELETE /api/okr/deleteokr/:okrid (delete okr with invalid okrId) ", async () => {
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    await supertest(app)
+      .delete(`/api/okr/deleteokr/${okr_id}1`)
+      .set(headers)
+      .expect(400)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(`Invalid okr id Provided`);
+      });
+  });
+
   it("DELETE delete created time period", async () => {
     await TimePeriod.findByIdAndDelete(timePeriodId);
   });
 
-  it("DELETE delete created Okr", async () => {
-    await Okr.findByIdAndDelete(okr_id);
-  });
-
-  it("DELETE delete created activity feed of okr", async () => {
-    await ActivityFeed.deleteOne({ id: okr_id });
-  });
-
   it("DELETE delete created activity feed of krs", async () => {
-    await ActivityFeed.deleteOne({ id: activity_feed_kr_id });
+    await ActivityFeed.deleteOne({ id: kr_id });
+  });
+
+  it("DELETE delete created activity feed of new added krs", async () => {
+    let last_krs_id = await ActivityFeed.find()
+      .sort({ createdAt: -1 })
+      .limit(1);
+    console.log(last_krs_id[0]._id.toString());
+    await ActivityFeed.findByIdAndDelete(last_krs_id[0]._id.toString());
+  });
+
+  it("POST search user okr /api/okr/search (without error)", async () => {
+    let searchUserOKr = {
+      type:'individual',
+      userId: constants.admin_id,
+      quarter: constants.quarter_id,
+    };
+    const headers = {
+      "x-access-token": auth_token,
+    }; 
+    await supertest(app)
+      .post(`/api/okr/search`)
+      .send(searchUserOKr)
+      .set(headers)
+      .expect(200)
+      .then((response) => {
+        expect(response.body.status).toEqual("success");
+        expect(response.body.message).toEqual("Successfully Fetched the User's Objectives");
+      });
+  });
+
+  it("DELETE /api/okr/deleteokr/:okrid (delete okr with okrId Error) ", async () => {
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    Okr.findOne = jest.fn().mockImplementationOnce(() => {
+      throw new Error();
+    });
+    await supertest(app)
+      .delete(`/api/okr/deleteokr/${okr_id}1`)
+      .set(headers)
+      .expect(500)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(`SOMETHING WENT WRONG`);
+      });
+  });
+
+  it("DELETE /api/okr/deletekr/:okrid/:krsid (delete single kr with okrId and krId Error) ", async () => {
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    Okr.findOne = jest.fn().mockImplementationOnce(() => {
+      throw new Error();
+    });
+    await supertest(app)
+      .delete(`/api/okr/deletekr/${okr_id}/${kr_id}1`)
+      .set(headers)
+      .expect(500)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(`SOMETHING WENT WRONG`);
+      });
+  });
+
+  it("PATCH /api/okr/updatecomment/:krid (update added comment with Error) ", async () => {
+    let updateComment = {};
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    Okr.findOne = jest.fn().mockImplementationOnce(() => {
+      throw new Error();
+    });
+    await supertest(app)
+      .patch(`/api/okr/updatecomment/${kr_id}`)
+      .send(updateComment)
+      .set(headers)
+      .expect(500)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(`SOMETHING WENT WRONG`);
+      });
+  });
+
+  it("PATCH /api/okr/addcomment/:krid (update add comment with Error) ", async () => {
+    let commentBody = {};
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    Okr.findOneAndUpdate = jest.fn().mockImplementationOnce(() => {
+      throw new Error();
+    });
+    await supertest(app)
+      .patch(`/api/okr/addcomment/${kr_id}`)
+      .send(commentBody)
+      .set(headers)
+      .expect(500)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(`SOMETHING WENT WRONG`);
+      });
+  });
+
+  it("PUT /api/okr/checkin/:krId (update checkIn and comment by krId Error) ", async () => {
+    let krsBody = {};
+    const headers = {
+      "x-access-token": auth_token,
+    };
+    Okr.findOne = jest.fn().mockImplementationOnce(() => {
+      throw new Error();
+    });
+    await supertest(app)
+      .put(`/api/okr/checkin/${kr_id}`)
+      .send(krsBody)
+      .set(headers)
+      .expect(500)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual(`SOMETHING WENT WRONG`);
+      });
   });
 
   it("PUT /api/okr/addkrs/:okrid (update add krs with Error) ", async () => {
@@ -779,7 +1090,6 @@ describe("user-type test", () => {
         expect(response.body.message).toEqual(`SOMETHING WENT WRONG`);
       });
   });
-  ///////////////////////////////////////////////////////////////
 
   it("POST /api/okr (Create Okr with Error) ", async () => {
     let createUser = {
@@ -869,6 +1179,31 @@ describe("user-type test", () => {
       .then((response) => {
         expect(response.body.status).toEqual("failure");
         expect(response.body.message).toEqual("SOMETHING WENT WRONG");
+      });
+  });
+
+  it("POST search user okr /api/okr/search (with error)", async () => {
+    let searchUserOKr = {
+      type:"indidal",
+      userId: constants.user_id,
+      quarter: constants.quarter_id,
+    };
+    const headers = {
+      "x-access-token": auth_token,
+    }; 
+    User.findById = jest.fn().mockImplementationOnce(() => {
+      throw new Error();
+    });
+    await supertest(app)
+      .post(
+        `/api/okr/search`
+      )
+      .send(searchUserOKr)
+      .set(headers)
+      .expect(400)
+      .then((response) => {
+        expect(response.body.status).toEqual("failure");
+        expect(response.body.message).toEqual("Failed to fetch User's Objectives");
       });
   });
 });

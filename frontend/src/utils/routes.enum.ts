@@ -10,8 +10,10 @@ export enum ROUTES {
   LOGIN = "login",
   OKR = "okr",
   OKR_DETAIL = "okr/:id",
-  SETTINGS = "settings",
+  SETTING = "setting",
   TIMEPERIOD = "timeperiod",
   UNAUTHORIZED = "unauthorized",
-  WELCOME = "welcome"
+  WELCOME = "welcome",
+  Setting = "setting",
+  FORGOT_PASSWORD = "forgot-password",
 }

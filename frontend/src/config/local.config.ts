@@ -1,5 +1,6 @@
 export const config = {
-    REACT_APP_API_HOST: "http://localhost:4000/api",
-    CLIENT_URL: "http://localhost:4000",
+    REACT_APP_API_HOST: "",
+    CLIENT_URL: "",
     GENERATE_SOURCEMAP: false,
+    CRYPTO_SECRET: "",
 }

@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const CONSTANTS = require("../../utility/constants");
 const { env } = require('../../config/environment');
 const config = require(`../../config/${env}.config`);
@@ -206,7 +206,8 @@ const userSchema = new mongoose.Schema({
 userSchema.pre("save", async function (next) {
   if (this.password) {
     const saltOrRound = parseInt(config.BCRYPT_SALTORROUND);
-    const hashedPassword = await bcrypt.hash(this.password, saltOrRound);
+    const salt = await bcrypt.genSalt(saltOrRound);
+    const hashedPassword = await bcrypt.hash(this.password, salt);
     this.password = hashedPassword;
   }
   next();

@@ -6,6 +6,7 @@ import API from "../../utils/axios";
 export interface PeopleState {
   data: any;
   orgChartData: any;
+  orgTreeData: any;
   reportingMangerList: any;
   status: "idle" | "loading" | "failed";
   errors: string | null;
@@ -19,6 +20,7 @@ const initialState: PeopleState = {
     value: { name: "no data" },
     children: [],
   },
+  orgTreeData: [],
   status: "idle",
   errors: null,
 };
@@ -176,6 +178,18 @@ export const getReportingManagerList = createAsyncThunk(
   }
 );
 
+export const getOrgTreeData = createAsyncThunk(
+  "OrgTree/getData",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await API.get(`/myorganization/orgchart-list`);
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error?.response?.data?.message);
+    }
+  }
+);
+
 export const peopleSlice = createSlice({
   name: "peopleList",
   initialState,
@@ -236,6 +250,17 @@ export const peopleSlice = createSlice({
         };
       })
       .addCase(getOrgChartData.rejected, (state: any, action: any) => {
+        state.status = "failed";
+      });
+    builder
+      .addCase(getOrgTreeData.pending, (state: any) => {
+        state.status = "loading";
+      })
+      .addCase(getOrgTreeData.fulfilled, (state: any, action: any) => {
+        state.status = "idle";
+        state.orgTreeData = [action.payload?.data];
+      })
+      .addCase(getOrgTreeData.rejected, (state: any, action: any) => {
         state.status = "failed";
       });
     builder

@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { notification } from "antd";
 import { RootState } from "../../redux/store";
 
 import API from "../../utils/axios";
@@ -29,6 +30,8 @@ export const setPasswordAsync = createAsyncThunk(
         `/user/${id}/setpassword?type=${type}`,
         payload.inputData
       );
+      if (response.data.status === "success")
+        notification.success({ message: response.data?.message });
       return response.data;
     } catch (error: any) {
       return rejectWithValue(error?.response?.data?.message);

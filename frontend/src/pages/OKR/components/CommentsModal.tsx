@@ -1,18 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import styled from "styled-components";
 import {
   Avatar,
   Modal,
-  Tabs,
   Comment,
   Typography,
-  List,
-  Input,
   Timeline,
-  Form,
-  Row,
-  Col,
-  Button,
   Space,
   Empty,
   Spin,
@@ -21,10 +14,9 @@ import { ArrowRightOutlined } from "@ant-design/icons";
 
 import { Activity, Kr, PrevDatum, OkrComment } from "../okr.types";
 import {
-  currentUser,
   timeAgoFrom,
 } from "../../../utils/constants";
-import { commentOnOkrAsync, getKrFeedbacksAsync, selectOkr } from "../okrSlice";
+import { selectOkr } from "../okrSlice";
 import { useAppDispatch, useAppSelector } from "../../../redux/hooks";
 import { startCase } from "lodash";
 
@@ -44,9 +36,8 @@ const CommentsModal: React.FC<CommentsModalProps> = ({
   onFinish,
 }) => {
   const dispatch = useAppDispatch();
-  const [form] = Form.useForm();
-  const { activityFeed, status } = useAppSelector(selectOkr);
-  const loading = status === "loading";
+  const { activityFeed, statusAF } = useAppSelector(selectOkr);
+  const loading = statusAF === "loading";
   const [comments, setComments] = useState<OkrComment[]>([]);
 
   const actionLabel = {
@@ -60,12 +51,6 @@ const CommentsModal: React.FC<CommentsModalProps> = ({
     KR_PROGRESS_UPDATED_COMMENTED: "checked in with comment",
   };
 
-  const onComment = (values: any) => {
-    dispatch(commentOnOkrAsync({ krsId: kr?.krsId, text: values.text }));
-    form.resetFields();
-    // onClose();
-    onFinish();
-  };
 
   const formatKrProgressUpdated = (data: PrevDatum) => {
     return Object.entries(data || {})
@@ -137,102 +122,46 @@ const CommentsModal: React.FC<CommentsModalProps> = ({
     }
   };
 
-  useEffect(() => {
-    const krComments = kr?.krComments?.filter((k) => k.text !== "");
-    krComments?.reverse();
-    setComments(krComments);
-    kr?.krsId?.length > 0 &&
-      dispatch(getKrFeedbacksAsync({ krsId: kr?.krsId }));
-  }, [dispatch,kr]);
 
   return (
     <Modal
       visible={open}
       onCancel={onClose}
-      title={<Typography.Text ellipsis>{kr?.keyResult}</Typography.Text>}
+      title={<Typography.Text ellipsis>Activity Feed of {kr?.keyResult}</Typography.Text>}
       width={600}
       footer={null}
       bodyStyle={{ padding: "10px 20px" }}
     >
-      <Tabs size="small" defaultActiveKey="Feed">
-        <Tabs.TabPane tab="Comments" key="Comments">
-          {!viewMode && (
-            <Form onFinish={onComment} form={form}>
-              <Row>
-                <Col span={2}>
-                  <Avatar size="small" src={currentUser?.avatar} />
-                </Col>
-                <Col span={18}>
-                  <Form.Item name="text"  rules={[{ required: true, message: 'Please input your comment!' }]}>
-                    <Input.TextArea rows={1} maxLength={300} showCount />
-                  </Form.Item>
-                </Col>
-                <Col span={4}>
-                  <Form.Item>
-                    <Button type="link" size="small" htmlType="submit">
-                      Comment
-                    </Button>
-                  </Form.Item>
-                </Col>
-              </Row>
-            </Form>
-          )}
-          {loading && <Spin />}
-          <List
-            dataSource={comments}
-            rowKey={(row: any) => row?._id}
-            size="small"
-            pagination={{
-              pageSize: 3,
-              size: "small",
-            }}
-            renderItem={(comment: any) => (
+      {loading ? <Spin /> :(
+      <StyledTimeline>
+        {activityFeed?.activity?.length === 0 && (
+          <EmptyFeed description="No activity. Check-in to make some changes" />
+        )}
+        {activityFeed?.activity
+          ?.filter(
+            (a: Activity) =>
+              !["OKR_CREATED", "OKR_UPDATED"].includes(a?.operation)
+          )
+          .map((feed: Activity) => (
+            <Timeline.Item>
               <Comment
-                author={`${comment?.commentedBy?.firstName} ${comment?.commentedBy?.surname} commented`}
-                avatar={<Avatar src={comment?.commentedBy?.avatar} />}
+                // @ts-ignore
+                author={`${feed.createdBy?.firstName} ${
+                  feed?.createdBy?.surname || ""
+                  // @ts-ignore
+                } ${actionLabel[feed?.operation]}`}
+                avatar={<Avatar src={feed.createdBy?.avatar} />}
                 datetime={
                   <Typography.Text>
-                    {timeAgoFrom(comment?.createdAt)}
+                    {timeAgoFrom(feed?.timestamp?.toString())}
                   </Typography.Text>
                 }
-                content={
-                  <Typography.Paragraph>{comment.text}</Typography.Paragraph>
-                }
+                content={renderFeedUseCase(feed?.operation, feed)}
               />
-            )}
-          />
-        </Tabs.TabPane>
-        <Tabs.TabPane tab="Activity Feed" key="Feed">
-          <StyledTimeline>
-            {activityFeed?.activity?.length === 0 && (
-              <EmptyFeed description="No activity. Check-in to make some changes" />
-            )}
-            {activityFeed?.activity
-              ?.filter(
-                (a: Activity) =>
-                  !["OKR_CREATED", "OKR_UPDATED"].includes(a?.operation)
-              )
-              .map((feed: Activity) => (
-                <Timeline.Item>
-                  <Comment
-                    // @ts-ignore
-                    author={`${feed.createdBy?.firstName} ${
-                      feed.createdBy?.surname
-                      // @ts-ignore
-                    } ${actionLabel[feed?.operation]}`}
-                    avatar={<Avatar src={feed.createdBy?.avatar} />}
-                    datetime={
-                      <Typography.Text>
-                        {timeAgoFrom(feed?.timestamp?.toString())}
-                      </Typography.Text>
-                    }
-                    content={renderFeedUseCase(feed?.operation, feed)}
-                  />
-                </Timeline.Item>
-              ))}
-          </StyledTimeline>
-        </Tabs.TabPane>
-      </Tabs>
+            </Timeline.Item>
+          ))}
+      </StyledTimeline>
+      )}
     </Modal>
   );
 };

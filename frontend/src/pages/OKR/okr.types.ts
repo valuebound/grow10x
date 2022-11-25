@@ -1,85 +1,87 @@
 export interface Okr {
-  totalObjective:   number;
-  objectiveDone:    number;
-  objectiveAtRisk:  number;
-  objectiveBehind:  number;
+  totalObjective: number;
+  objectiveDone: number;
+  objectiveAtRisk: number;
+  objectiveBehind: number;
   objectiveOnTrack: number;
-  totalKrs:         number;
-  overallProgress:  number;
-  overallStatus:    string;
-  okrs:             OkrElement[];
+  totalKrs: number;
+  overallProgress: number;
+  overallStatus: string;
+  okrs: OkrElement[];
+  childOkrs: any;
 }
 
 export interface OkrElement {
   okrObjectiveId: string;
-  okrObjective:   string;
-  okrType:        string;
-  krs:            Kr[];
-  okrProgress:    number;
-  okrStatus:      string;
-  okrOwner:       OkrOwner;
-  quarter:        string;
-  okrCreatedAt:   Date;
-  okrUpdatedAt:   Date;
-  okrComments:    OkrComment[];
+  okrObjective: string;
+  okrType: string;
+  krs: Kr[];
+  okrProgress: number;
+  okrStatus: string;
+  okrOwner: OkrOwner;
+  quarter: string;
+  okrCreatedAt: Date;
+  okrUpdatedAt: Date;
+  okrComments: OkrComment[];
+  childOkrs: any;
 }
 
 export interface Kr {
-  krsId:        string;
-  keyResult:    string;
-  krProgress:   number;
-  status:       string;
-  start:        number;
+  krsId: string;
+  keyResult: string;
+  krProgress: number;
+  status: string;
+  start: number;
   currentValue: number;
-  target:       number;
-  isBoolean:    boolean;
-  unit:         string;
-  krComments:   OkrComment[];
+  target: number;
+  isBoolean: boolean;
+  unit: string;
+  krComments: OkrComment[];
 }
 
 export interface OkrComment {
-  text:        string;
+  text: string;
   commentedBy: CommentedBy;
-  createdAt:   Date;
-  _id:         string;
+  createdAt: Date;
+  _id: string;
 }
 
 export interface CommentedBy {
-  _id:       string;
+  _id: string;
   firstName: string;
-  surname:   string;
+  surname: string;
 }
 
 export interface OkrOwner {
-  _id:          string;
-  firstName:    string;
-  surname:      string;
+  _id: string;
+  firstName: string;
+  surname: string;
   organization: string;
-  level:        number;
-  teams:        any[];
+  level: number;
+  teams: any[];
 }
 
 export interface ActivityFeed {
-  status:  string;
-  code:    number;
+  status: string;
+  code: number;
   message: string;
-  data:    Data;
-  error:   Error;
+  data: Data;
+  error: Error;
 }
 
 export interface Data {
-  _id:       string;
-  user:      User;
-  id:        string;
-  type:      string;
+  _id: string;
+  user: User;
+  id: string;
+  type: string;
   createdAt: Date;
-  status:    string;
-  activity:  Activity[];
+  status: string;
+  activity: Activity[];
 }
 
 export interface Activity {
-  prevData:  PrevDatum | any;
-  newData:   NewDatum | any;
+  prevData: PrevDatum | any;
+  newData: NewDatum | any;
   createdBy: {
     _id: string;
     firstName: string;
@@ -88,25 +90,25 @@ export interface Activity {
   };
   operation: string;
   timestamp: Date;
-  _id:       string;
+  _id: string;
 }
 
 export interface NewDatum {
-  keyResult?:    string;
-  target?:       number;
-  start?:        number;
+  keyResult?: string;
+  target?: number;
+  start?: number;
   currentValue?: number;
-  isDeleted?:    boolean;
-  isBoolean?:    boolean;
-  unit?:         string;
-  comment?:      CommentClass;
-  _id?:          string;
-  text?:         string;
-  commentedBy?:  string;
+  isDeleted?: boolean;
+  isBoolean?: boolean;
+  unit?: string;
+  comment?: CommentClass;
+  _id?: string;
+  text?: string;
+  commentedBy?: string;
 }
 
 export interface CommentClass {
-  text:        string;
+  text: string;
   commentedBy: {
     _id: string;
     firstName: string;
@@ -120,7 +122,7 @@ export interface PrevDatum {
 }
 
 export interface User {
-  _id:       string;
+  _id: string;
   firstName: string;
-  surname:   string;
+  surname: string;
 }

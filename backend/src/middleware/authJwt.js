@@ -1,10 +1,9 @@
 const jwt = require("jsonwebtoken");
-const db = require("../models");
 const { customResponse } = require("../utility/helper");
 const { HTTP_CODES, ROLES, ERROR_MESSAGES } = require("../utility/constants");
 const Organization = require("../modules/organization/model");
-const User = db.user;
-const userType = db.userType;
+const User = require("../modules/user/model");
+const userType =  require("../modules/userType/model");
 const logger = require('../utility/logger');
 const sanitizer = require('sanitize')();
 const { env } = require('../config/environment');
@@ -138,7 +137,7 @@ const isAdmin = async(req, res, next) => {
       });
       return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
     }
-    if (String(userExist.role.role) === ROLES.ADMIN || userExist.isActive ){
+    if (String(userExist.role.role) === ROLES.ADMIN || userExist.isActive || String(userExist.role.role) === ROLES.SUPER_ADMIN){
       next()
     }
     else {

@@ -7,15 +7,17 @@ backend/yarn.lock
 
 
 # For front-end
-fontend/node_modules/
+frontend/node_modules/
 
-fontend/yarn.lock
-fontend/.pnp
+frontend/yarn.lock
+frontend/.pnp
 .pnp.js
 
 
-fontend/.DS_Store
-fontend/.env
-fontend/npm-debug.log*
-fontend/yarn-debug.log*
-fontend/yarn-error.log*
+frontend/.DS_Store
+frontend/.env
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+.DS_Store

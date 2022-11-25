@@ -5,11 +5,12 @@ import {
   differenceInDays,
 } from "date-fns";
 
-import API from "./axios";
+// import API from "./axios";
 
 export const STORAGE_KEY_CONSTANT = "okr_vb_token";
 export const USER_KEY_CONSTANT = "okr_vb_user";
 export const OKR_STATUS_NOT_FOUND = "status not yet calculated";
+export const COMPANY_ID = "companyId";
 
 export const currentUser = JSON.parse(
   String(localStorage.getItem(USER_KEY_CONSTANT))
@@ -43,7 +44,7 @@ export const okrTypesForForm = [
   { label: "Company Wide", value: "company" },
 ];
 
-export const getProgressColorPro = ( expected: string) => {
+export const getProgressColorPro = (expected: string) => {
   // const percentagePro = getStatusByProgress(percentage, expected);
   switch (expected) {
     case "atRisk":
@@ -189,12 +190,12 @@ export const getDonutChartColor = (type: string) => {
   }
 };
 
-// const logOut = ()=>{
-//   async () => {
-//     try {
-//       await API.get("/auth/logout");
-//     } catch (error: any) {
-//       console.log("some error occured")
-//     }
-//   }
-// }
+export const getCompanyId = () => {
+  return (
+    JSON.parse(String(localStorage.getItem(COMPANY_ID))) || {
+      id: "",
+      logoUrl: "",
+      name: "",
+    }
+  );
+};

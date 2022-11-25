@@ -1,16 +1,11 @@
 const Okr = require("../okr/model");
-const Organization = require("../organization/model");
 const User = require("../user/model");
 const { customResponse } = require("../../utility/helper");
-const { yearsToQuarters } = require("../../utility/quarter");
-const { GET_OKRS, HTTP_CODES, ROLES, OKR_TYPES } = require("../../utility/constants");
-const userType = require("../userType/model");
+const { HTTP_CODES, OKR_TYPES } = require("../../utility/constants");
 const timePeriod = require("../timeperiod/model");
 const { customLogger } = require("../../utility/logger");
-const moment = require('moment');
-const {sum} = require('mathjs');
 const sanitizer = require("sanitize")();
-const { getStatsOfOkr } = require("../organization/controller");
+const { getStatsOfOkrWithoutOkrList } = require("../../utility/helper");
 
 
 /**
@@ -23,7 +18,7 @@ const getDashboardData = async (req, res) => {
   try{
     const userId = req.userId;
     const getOrgFromUserData = await User.findById(userId, { _id:0,organization:1});
-    const orgId = getOrgFromUserData.organization;
+    const orgId = req?.query?.orgid ? req.query.orgid : getOrgFromUserData.organization;
     const quarter = sanitizer.value(req.query.quarter, 'str');
     const getQuarterData = await timePeriod.findOne({
       _id: quarter,
@@ -49,7 +44,7 @@ const getDashboardData = async (req, res) => {
       const getOkrData = await Okr.find({ owner: userId, isDeleted: false ,
         quarter: getQuarterData._id, type: OKR_TYPES.INDIVIDUAL })
 
-      const statsData = await getStatsOfOkr(getOkrData, currentQuarter, orgId);
+      const statsData = await getStatsOfOkrWithoutOkrList(getOkrData, currentQuarter, orgId);
       const resData = customResponse({
         code: HTTP_CODES.SUCCESS,
         message: `Dashboard Summary Fetched Successfully`,
@@ -82,11 +77,11 @@ const getDashboardDataCompanyWide = async (req, res) => {
   try{
     const userId = req.userId;
     const getOrgFromUserData = await User.findById(userId, { _id:0,organization:1});
-    const orgId = getOrgFromUserData.organization;
+    const orgId = req?.query?.orgid ? req.query.orgid :getOrgFromUserData.organization;
     const quarter = sanitizer.value(req.query.quarter, 'str');
     const getQuarterData = await timePeriod.findOne({
       _id: quarter,
-      organization: getOrgFromUserData.organization,
+      organization: orgId,
       isDeleted: false,
     },
     {
@@ -108,13 +103,13 @@ const getDashboardDataCompanyWide = async (req, res) => {
       .populate("owner",{organization:1});
       let myCompanyOKR=[]
       for(let i = 0; i<getOkrData.length; i++){
-        if (String(getOkrData[i].owner.organization) === String(getOrgFromUserData.organization) ){
+        if (String(getOkrData[i].owner.organization) === String(orgId) ){
           if (getOkrData[i].krs.length > 0) {
             myCompanyOKR.push(getOkrData[i]);
           }
         }
       }
-      const statsData = await getStatsOfOkr(myCompanyOKR, getQuarterData._id, orgId);
+      const statsData = await getStatsOfOkrWithoutOkrList(myCompanyOKR, getQuarterData._id, orgId);
 
       const resData = customResponse({
         code: HTTP_CODES.SUCCESS,

@@ -35,23 +35,60 @@ export const createOrganizationAsync = createAsyncThunk(
   async (payload: any, { rejectWithValue }) => {
     try {
       const res = await API.post("/auth/orgsignup", payload);
-      if(res.data.status !== "success") notification.error({ message: res.data.message })
-      return res.data
+      if (res.data.status !== "success")
+        notification.error({ message: res.data.message });
+      return res.data;
     } catch (error: any) {
       return rejectWithValue(error?.response?.data?.message);
     }
   }
 );
 
+export const updateOrganizationAsync = createAsyncThunk(
+  `organization/updateOrganizationAsync`,
+  async (payload: any, { rejectWithValue }) => {
+    try {
+      const response = await API.put(
+        `/auth/update/org/${payload?._id}`,
+        payload
+      );
+      if (response.data.status === "success")
+        notification.success({ message: response.data.message });
+      else notification.error({ message: response.data.message });
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error?.response?.data?.message);
+    }
+  }
+);
+
+export const deleteOrganizationLogoAsync = createAsyncThunk(
+  "organization/deleteOrganizationLogoAsync",
+  async (payload: any, { rejectWithValue }) => {
+    const { orgId, logo } = payload;
+    try {
+      const response = await API.delete(`/auth/delete/logo/${orgId}/${logo}`);
+      if (response.data.status === "success")
+        notification.success({ message: response.data.message });
+      else notification.error({ message: response.data.message });
+      return response.data;
+    } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 export const deleteOrganizationAsync = createAsyncThunk(
   "organization/deleteOrganization",
-  async (id:String, { rejectWithValue }) => {
+  async (id: String, { rejectWithValue }) => {
     try {
       const response = await API.delete(`/auth/delete/${id}`);
       return response.data;
     } catch (error: any) {
       if (error.response.status >= 400 && error.response.status <= 503) {
-        notification.error({ message: error.response.data?.message || error.response?.statusText })
+        notification.error({
+          message: error.response.data?.message || error.response?.statusText,
+        });
       }
       return rejectWithValue(error?.response?.data?.message);
     }
@@ -73,9 +110,9 @@ export const organizationSlice = createSlice({
       })
       .addCase(getOrganizationListAsync.rejected, (state, action) => {
         state.status = "failed";
-        state.error = String(action.payload)
+        state.error = String(action.payload);
       });
-      
+
     builder
       .addCase(createOrganizationAsync.pending, (state, action) => {
         state.status = "loading";
@@ -85,7 +122,30 @@ export const organizationSlice = createSlice({
       })
       .addCase(createOrganizationAsync.rejected, (state, action) => {
         state.status = "failed";
-        state.error = String(action.payload)
+        state.error = String(action.payload);
+      });
+
+    builder
+      .addCase(updateOrganizationAsync.pending, (state, action) => {
+        state.status = "loading";
+      })
+      .addCase(updateOrganizationAsync.fulfilled, (state, action) => {
+        state.status = "idle";
+      })
+      .addCase(updateOrganizationAsync.rejected, (state, action) => {
+        state.status = "failed";
+      });
+
+    builder
+      .addCase(deleteOrganizationLogoAsync.pending, (state, action) => {
+        state.status = "loading";
+      })
+      .addCase(deleteOrganizationLogoAsync.fulfilled, (state, action) => {
+        state.status = "idle";
+      })
+      .addCase(deleteOrganizationLogoAsync.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = String(action.payload);
       });
 
     builder
@@ -97,7 +157,7 @@ export const organizationSlice = createSlice({
       })
       .addCase(deleteOrganizationAsync.rejected, (state, action) => {
         state.status = "failed";
-        state.error = String(action.payload)
+        state.error = String(action.payload);
       });
   },
 });

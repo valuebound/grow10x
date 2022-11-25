@@ -9,7 +9,7 @@ const getMyActivityFeed = async (req, res) => {
     try {
         const _id = req.userId;
         const user = await User.findById(_id);
-        const orgId = user.organization;
+        const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
         const id = sanitizer.value(req.params.id, 'str');
         const getActivityFeedData = await activityFeed.findOne(
         {

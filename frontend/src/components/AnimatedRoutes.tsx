@@ -6,7 +6,6 @@ import {
   Home,
   Login,
   OKR,
-  OKRDetail,
   NotFound,
   Organization,
   SetPassword,
@@ -15,6 +14,8 @@ import {
   Profile,
   Unauthorized,
   LandingPage,
+  Setting,
+  ForgotPassword,
 } from "../pages";
 import { PrivateRoute } from "../components";
 import { AppSkeleton } from ".";
@@ -43,8 +44,8 @@ const AnimatedRoutes: React.FC = () => {
             <Route path={ROUTES.PEOPLE} element={<People />} />
             <Route path={ROUTES.PROFILE} element={<Profile />} />
             <Route path={ROUTES.OKR} element={<OKR />} />
-            {/* <Route path={ROUTES.OKR_DETAIL} element={<OKRDetail />} /> */}
           </Route>
+          <Route path={ROUTES.SETTING} element={<Setting />} />
           <Route element={<AuthRole allowedRoles={[ROLES.SUPER_ADMIN]} />}>
             <Route path={ROUTES.ORGANIZATION} element={<Organization />} />
           </Route>
@@ -56,6 +57,7 @@ const AnimatedRoutes: React.FC = () => {
         <Route path={`${ROUTES.SET_PASSWORD}/:id`} element={<SetPassword />} />
         <Route path={ROUTES.LOGIN} element={<Login />} />
         <Route path={ROUTES.WELCOME} element={<LandingPage />} />
+        <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPassword />} />
 
         <Route path="*" element={<NotFound />} />
       </Routes>

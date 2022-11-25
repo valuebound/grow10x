@@ -31,7 +31,7 @@ export const getAllTimePeriodsAsync = createAsyncThunk(
 export const updateTimePeriodsAsync = createAsyncThunk(
   "timePeriod/update",
   async (data: any, { rejectWithValue }) => {
-    try {      
+    try {
       const res = await API.patch(`timeperiod/update/${data._id}`, data);
       return res.data;
     } catch (error: any) {
@@ -44,10 +44,7 @@ export const deleteTimePeriodsAsync = createAsyncThunk(
   "timePeriod/delete",
   async (data: any, { rejectWithValue }) => {
     try {
-      console.log(data._id)
-      const res = await API.delete(
-        `timeperiod/delete/${data._id}`
-      );
+      const res = await API.delete(`timeperiod/delete/${data._id}`);
       return res.data;
     } catch (error: any) {
       return rejectWithValue(error?.message);
@@ -91,7 +88,7 @@ export const timeperiodSlice = createSlice({
       })
       .addCase(updateTimePeriodsAsync.fulfilled, (state: any, action: any) => {
         state.status = "idle";
-        notification.success({ message: "Updated time period successfully" })
+        notification.success({ message: "Updated time period successfully" });
       })
       .addCase(updateTimePeriodsAsync.rejected, (state: any, action: any) => {
         state.status = "failed";
@@ -104,7 +101,7 @@ export const timeperiodSlice = createSlice({
       })
       .addCase(createTimePeriodsAsync.fulfilled, (state: any, action: any) => {
         state.status = "idle";
-        notification.success({ message: "Created time period successfully" })
+        notification.success({ message: "Created time period successfully" });
       })
       .addCase(createTimePeriodsAsync.rejected, (state: any, action: any) => {
         state.status = "failed";
@@ -117,7 +114,7 @@ export const timeperiodSlice = createSlice({
       })
       .addCase(deleteTimePeriodsAsync.fulfilled, (state: any, action: any) => {
         state.status = "idle";
-        notification.success({ message: "Deleted time period successfully" })
+        notification.success({ message: "Deleted time period successfully" });
       })
       .addCase(deleteTimePeriodsAsync.rejected, (state: any, action: any) => {
         state.status = "failed";

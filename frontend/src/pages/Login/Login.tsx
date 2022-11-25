@@ -1,8 +1,9 @@
 import React, { useEffect, useContext } from "react";
 import styled from "styled-components";
-import { Typography, Space } from "antd";
+import { Typography, Space, Divider } from "antd";
 import { MailOutlined, LockOutlined, HeartFilled } from "@ant-design/icons";
-
+//import { GoogleLogin } from "react-google-login";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import FormBuilder from "../../components/FormBuilder";
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
 import { selectAuth, loginAsync } from "./loginSlice";
@@ -13,6 +14,7 @@ import LoginImg from "../../assets/login.svg";
 import VBLogo from "../../assets/vb_logo.svg";
 import Grow10Logo from "../../assets/grow10x-new-removebg.png";
 import RedHeart from "../../assets/red-heart.png";
+import { Link } from "react-router-dom";
 
 type LoginProps = {};
 
@@ -21,6 +23,14 @@ const Login: React.FC<LoginProps> = () => {
   const { authenticated } = useContext(AuthContext);
   const { status } = useAppSelector(selectAuth);
   const loading = status === "loading";
+
+  // useEffect(()=>{
+  //   /* global google */
+  //   google.accounts.id.initialize(
+  //     client_id: "176331006924-1an7dmbvf16s65v7u9smqqslfkqse6mc.apps.googleusercontent.com",
+  //     callback: responseGoogle
+  //   )
+  // }, [])
 
   useEffect(() => {
     if (authenticated) {
@@ -49,11 +59,23 @@ const Login: React.FC<LoginProps> = () => {
       }
     });
   };
+  const onGoogleSubmit = (data: any) => {
+    try {
+      const payload = {
+        email: "",
+        password: " ",
+        googleAuthToken: data.credential,
+      };
+      onSubmit(payload);
+    } catch (error) {
+      alert(error);
+    }
+  };
 
   return (
-    <Container >
-      <LeftHalf >
-        <Space direction="vertical" >
+    <Container>
+      <LeftHalf>
+        <Space direction="vertical">
           <img
             alt="person entering door"
             src={LoginImg}
@@ -61,23 +83,20 @@ const Login: React.FC<LoginProps> = () => {
             style={{ maxWidth: 400 }}
             data-testid="left-half-space-img"
           />
-          <Typography.Title
-            style={{ color: "white" }}
-           
-          >
+          <Typography.Title style={{ color: "white" }}>
             Grow10x Login
           </Typography.Title>
-          <Typography.Title
-            level={3}
-            style={{ color: "white" }}
-           
-          >
+          <Typography.Title level={3} style={{ color: "white" }}>
             Sky rocket your employee's performance
           </Typography.Title>
         </Space>
       </LeftHalf>
       <RightHalf>
-        <StyledImg src={Grow10Logo} alt="Grow10x" data-testid="right-half-logo" />
+        <StyledImg
+          src={Grow10Logo}
+          alt="Grow10x"
+          data-testid="right-half-logo"
+        />
         <FormContainer>
           <FormBuilder
             name="Login"
@@ -115,15 +134,16 @@ const Login: React.FC<LoginProps> = () => {
               },
             ]}
           />
+          <Link to={`/${ROUTES.FORGOT_PASSWORD}`}>Forgotten password?</Link>
+          <Divider>OR</Divider>
         </FormContainer>
+        <GoogleLogin onSuccess={(e) => onGoogleSubmit(e)} onError={() => {}} />
         <StyledFooter data-testid="login-styled-footer">
           Made in India with
-          <img
-            src={RedHeart}
-            alt="heart-logo"
-            width={25}
-           
-          />
+          <img src={RedHeart} alt="heart-logo" width={25} />
+          <br />
+          {`Brought to you by Valuebound `}
+          <img src={VBLogo} alt="valuebound-logo" width={20} />
         </StyledFooter>
       </RightHalf>
     </Container>
@@ -183,5 +203,7 @@ const StyledImg = styled.img`
 `;
 const StyledFooter = styled(Typography.Text)`
   position: absolute;
+  align-items: center;
+  text-align: center;
   bottom: 20px;
 `;

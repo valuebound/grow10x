@@ -488,4 +488,24 @@ describe("user test", () => {
   it("DELETE delete-created-user", async () => {
     await User.deleteOne({ email: createdUserEmail });
   });
+
+  it("POST search user /api/user/search (without error)", async () => {
+    let searchName ={
+      name:"kus"
+    }
+    const headers = {
+      "x-access-token": auth_token,
+    }; 
+    await supertest(app)
+    .post(
+      `/api/user/search`
+    )
+    .send(searchName)
+    .set(headers)
+    .expect(200)
+    .then((response) => {
+      expect(response.body.status).toEqual("success");
+      expect(response.body.message).toEqual("Search Successfull");
+    });
+  });
 });

@@ -15,6 +15,7 @@ const {
   addComment,
   checkInSummary,
   checkInCompanySummary,
+  searchOkrByUser,
 } = require("./controller");
 
 router.post("/", [verifyToken, isActive], createOkr);
@@ -29,5 +30,6 @@ router.delete("/deletekr/:okrid/:krsid",[verifyToken, isActive], deleteKr);
 router.patch("/addcomment/:krid",[verifyToken, isActive], addComment);
 router.get("/checkin/summary", [verifyToken, isActive], checkInSummary);
 router.get("/checkin/company/summary", [verifyToken, isActive], checkInCompanySummary);
+router.post("/search", [verifyToken], searchOkrByUser);
 
 module.exports = router;

@@ -16,7 +16,7 @@ module.exports.verifyTeamName = async function verifyTeamName (req, res, next) {
     
     const _id = req.userId;
     const user = await User.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     if (teamName){
         const teamNameExist = await Team.findOne({
             teamName: new RegExp("^" + teamName + "$", 'i'),

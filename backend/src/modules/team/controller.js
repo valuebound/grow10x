@@ -1,7 +1,7 @@
 const Team = require("./model");
 const User = require("../user/model");
 const { ROLES, HTTP_CODES, ERROR_MESSAGES, OKR_TYPES } = require("../../utility/constants");
-const { customResponse, customPagination } = require("../../utility/helper");
+const { customResponse, customPagination, getStatsOfOkrWithoutOkrList } = require("../../utility/helper");
 const { sendEmail } = require("../../utility/generateEmail");
 const { userType } = require('../../models');
 const { customLogger } = require("../../utility/logger");
@@ -9,14 +9,13 @@ const { teamCreatedTemplate, addedToTeamTemplate, deletedTeamTemplate, updatedTe
 const sanitizer = require("sanitize")();
 const { createTeamSchema } = require('./schema');
 const Okr = require("../okr/model");
-const { getStatsOfOkr } = require("../organization/controller");
 const timePeriod = require("../timeperiod/model");
 
 const createTeam = async (req, res) => {
   try {
     const _id = req.userId;
     const teamOwnerDetails = await User.findById(_id);
-    const orgId = teamOwnerDetails.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : teamOwnerDetails.organization;
     /**
      * Joi Validation
      */
@@ -90,7 +89,7 @@ const getTeams = async (req, res) => {
     const teamOwnerDetails = await User.findOne({ _id });
     const role = req?.decode?.role ? req.decode.role: teamOwnerDetails.role;
     const getRole = await userType.findById(role,{_id:1, role:1});
-    const orgId = teamOwnerDetails.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : teamOwnerDetails.organization;
     if (getRole.role === ROLES.ADMIN || req.decode.isAdmin){
       team = await Team.find({ organization: orgId  })
       .populate("lead", { _id: 1, firstName: 1, surname: 1 })
@@ -144,9 +143,8 @@ const getAllMembers = async (req, res) => {
     let allMembers = [];
     let userData,statsData, paginatedData;
     const _id = req.userId;
-    const user = await User.findById(_id);
-    const orgId = user.organization;
-    const adminRoleId = await userType.findOne({role: ROLES.ADMIN }, {_id:1});
+    const user = await User.findById(_id).populate('role',{ role: 1 });
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const getCurrentQuarter = await timePeriod.findOne({
       organization: orgId,
       isCurrent: true,
@@ -163,7 +161,7 @@ const getAllMembers = async (req, res) => {
     const totalCount =  await User.find({organization: orgId, isDeleted: false}).count();
     */
 
-    if (String(user.role) === String(adminRoleId._id)){
+    if (String(user.role.role) === ROLES.ADMIN || String(user.role.role) === ROLES.SUPER_ADMIN ){
       userData = await User.find(
         { organization: orgId, isDeleted: false , isActive: status === 'true' ? true : status === 'false' ? false : null },
         {
@@ -176,16 +174,18 @@ const getAllMembers = async (req, res) => {
           isActive: 1,
           userName: 1,
           avatar: 1,
+          phone: 1,
+          location: 1,
         }
       ).populate("teams", { _id: 1, teamName: 1 })
       .populate("role", {_id:1, role:1 })
-      .populate("reportingManager", { _id:1, firstName:1, surname:1, avatar:1 }).sort({ firstName: 1 });
+      .populate("reportingManager", { _id:1, firstName:1, surname:1, avatar:1, phone:1, designation:1, email:1 }).sort({ firstName: 1 });
 
       paginatedData = customPagination(userData, limitNo, page);
       const pageData = paginatedData?.results;
       for (let v = 0; v < paginatedData?.results?.length; v++){
         const getOkrData = await Okr.find({ owner: pageData[v]._id, type: OKR_TYPES.INDIVIDUAL, quarter: currentQuarter, isDeleted: false });
-        statsData = await getStatsOfOkr(getOkrData, currentQuarter, orgId);
+        statsData = await getStatsOfOkrWithoutOkrList(getOkrData, currentQuarter, orgId);
         let statsRequiredData = {
           overallProgress: statsData.overallProgress,
           overallStatus: statsData.overallStatus,
@@ -199,9 +199,11 @@ const getAllMembers = async (req, res) => {
           reportingManager: pageData[v].reportingManager,
           isActive: pageData[v].isActive,
           avatar: pageData[v].avatar,
-          okrStats: statsRequiredData,
+          okrStats: statsData,
           designation: pageData[v].designation,
           userName: pageData[v].userName,
+          phone: pageData[v].phone,
+          location: pageData[v].location,
         }
         allMembers.push(data);
       }
@@ -219,15 +221,17 @@ const getAllMembers = async (req, res) => {
           designation: 1,
           reportingManager: 1,
           avatar: 1,
+          phone: 1,
+          location: 1,
         }
       ).populate("teams", { _id: 1, teamName: 1 })
       .populate("role", {_id:1, role:1 })
-      .populate("reportingManager", { _id:1, firstName:1, surname:1, avatar:1 }).sort({ firstName: 1});
+      .populate("reportingManager", { _id:1, firstName:1, surname:1, avatar:1, phone:1, designation:1, email:1 }).sort({ firstName: 1});
       paginatedData = customPagination(userData, limitNo, page);
       const pageData = paginatedData?.results;
       for (let v = 0; v < paginatedData?.results?.length; v++){
         const getOkrData = await Okr.find({ owner: pageData[v]._id, type: OKR_TYPES.INDIVIDUAL, quarter: currentQuarter, isDeleted: false });
-        statsData = await getStatsOfOkr(getOkrData, currentQuarter, orgId);
+        statsData = await getStatsOfOkrWithoutOkrList(getOkrData, currentQuarter, orgId);
         let statsRequiredData = {
           overallProgress: statsData.overallProgress,
           overallStatus: statsData.overallStatus,
@@ -240,9 +244,11 @@ const getAllMembers = async (req, res) => {
           email: pageData[v].email,
           reportingManager: pageData[v].reportingManager,
           avatar: pageData[v].avatar,
-          okrStats: statsRequiredData,
+          okrStats: statsData,
           designation: pageData[v].designation,
           userName: pageData[v].userName,
+          phone : pageData[v].phone,
+          location : pageData[v].location,
         }
         allMembers.push(data);
       }
@@ -271,7 +277,7 @@ const getTeamsList = async(req, res) => {
   try {
     const _id = req.userId;
     const user = await User.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
   const teams = await Team.find({ organization: orgId });
   let teamList = [];
   for( i=0; i<teams.length; i++){
@@ -457,7 +463,7 @@ const teamnNameAvailable = async(req, res) => {
   try {
     const _id = req.userId;
     const user = await User.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const teamName = req.query.teamName;
     if (teamName || teamName !== "" || teamName !== null){
       const result = await Team.findOne({

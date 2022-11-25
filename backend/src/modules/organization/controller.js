@@ -1,12 +1,10 @@
-const Joi = require("joi");
 const { nanoid } = require("nanoid");
-
 const organizationModel = require("./model");
 const userModel = require("../user/model");
-const { customResponse, getAvatarUrl} = require("../../utility/helper");
+const { customResponse, getAvatarUrl, getStatsOfOkrWithoutOkrList} = require("../../utility/helper");
 const { sendEmail } = require("../../utility/generateEmail");
 const { generateMessage } = require("../../utility/generateTemplate");
-const { orgSignup_JoiSchema } = require("./schema");
+const { orgSignup_JoiSchema, orgDetailsUpdate_JoiSchema } = require("./schema");
 const { userType } = require("../../models");
 const { HTTP_CODES, ROLES, OKR_TYPES } = require("../../utility/constants");
 const logger = require("../../utility/logger");
@@ -15,8 +13,13 @@ const Okr = require("../okr/model");
 const timePeriod = require("../timeperiod/model");
 const sanitizer = require("sanitize")();
 const moment = require('moment');
-const {sum} = require('mathjs');
-const { runCronWhenNotificationUpdates } = require("../../cron");
+const { env } = require('../../config/environment');
+const config = require(`../../config/${env}.config`);
+const s3Client = require("../../utility/s3config");
+const fs = require('fs');
+const { promisify } = require('util');
+const unlinkAsync = promisify(fs.unlink);
+global.__basedir = __dirname + "/..";
 
 
 const createOrganizationAccount = async (req, res) => {
@@ -113,7 +116,8 @@ const getAllUsersAccount = async (req, res) => {
     const user = await userModel.findById(_id);
     const role = req.decode.role;
     const getRole = await userType.findById(role,{_id:1, role:1});
-    const orgExist = await organizationModel.findById({_id:user.organization});
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user?.organization;
+    const orgExist = await organizationModel.findById({_id:orgId});
     if (!orgExist){
       const resData = customResponse({
         code : HTTP_CODES.BAD_REQUEST,
@@ -124,7 +128,7 @@ const getAllUsersAccount = async (req, res) => {
     }
     let userData = [], admins=[];
     if (getRole.role == ROLES.ADMIN || req.decode.isAdmin ){
-      admins = await userModel.find({ organization: user.organization , isDeleted:false });
+      admins = await userModel.find({ organization: orgId , isDeleted:false });
       for( i=0; i<admins.length; i++){
         let surnameExist = admins[i].surname ? admins[i].surname: " ";
         let data = {
@@ -141,7 +145,7 @@ const getAllUsersAccount = async (req, res) => {
       }
     }
     else{
-      admins = await userModel.find({ organization: user.organization , isActive: true });
+      admins = await userModel.find({ organization: orgId , isActive: true });
       for( i=0; i<admins.length; i++){
         let surnameExist = admins[i]?.surname ? admins[i]?.surname: " ";
         let data = {
@@ -195,11 +199,48 @@ const getOrganizationList = async(req, res) => {
 
 const updateMyOrg = async (req, res) => {
   try {
-    const orgId = req.params.orgid;
+    const orgidbyParams = sanitizer.value(req.params.orgid, 'str');
+    const orgId = req?.query?.orgid ? req.query?.orgid : orgidbyParams;
+    const getOldDataOfUser = await organizationModel.findById(orgId);
+    /**
+     * Email Duplicate Validation
+     */
+     if (getOldDataOfUser.adminEmail !== req?.body?.adminEmail){
+      const checkEmailExist = await User.findOne({ adminEmail : req.body.adminEmail}).count();
+      const checkEmailExistOrgModel = await organizationModel.findOne({ adminEmail : req.body.adminEmail }).count();
+      if (checkEmailExist > 0 && checkEmailExistOrgModel > 0){
+        const resData = customResponse({
+          code: HTTP_CODES.UNPROCESSABLE_ENTITY,
+          message: `Email '${req.body.adminEmail}' is already exist`,
+          err: {},
+        });
+        return res.status(HTTP_CODES.UNPROCESSABLE_ENTITY).send(resData);
+      }
+    }
+    /**
+     * Joi Validation
+     */
+    const { error } = orgDetailsUpdate_JoiSchema.validate(req.body);
+    if (error) {
+      logger.customLogger.log('error', error);
+      const resData = customResponse({
+        code: HTTP_CODES.UNPROCESSABLE_ENTITY,
+        message: "Validation Failed! Invalid request data",
+        err: error,
+      });
+      return res.status(HTTP_CODES.UNPROCESSABLE_ENTITY).send(resData);
+    }
     const updateOrg = await organizationModel.findByIdAndUpdate(
       orgId,
       {
-        ...req.body
+        orgName: req?.body?.orgName,
+        orgUsername: req?.body?.orgUsername,
+        adminName: req?.body?.adminName,
+        adminEmail: req?.body?.adminEmail,
+        adminPhone: req?.body?.adminPhone,
+        adminPhoneSecondary : req?.body?.adminPhoneSecondary,
+        location: req?.body?.location,
+        settings: req?.body?.settings,
       },
       {
         new: true,
@@ -210,10 +251,27 @@ const updateMyOrg = async (req, res) => {
       await runCronWhenNotificationUpdates();
     }
      */
+    /**
+     * Update data in User Model Also
+     */
+    if (req.body.adminEmail || req.body.adminName || req.body.adminPhone ){
+      let fName = req?.body?.adminName.split(" ")[0];
+      let sName = req?.body?.adminName.split(" ")[1];
+      const updateUserData = await User.findOneAndUpdate({ email: getOldDataOfUser.adminEmail },
+        {
+          firstName: fName ? fName : getOldDataOfUser.adminName.split(" ")[0],
+          surname: sName ? sName : getOldDataOfUser.adminName.split(" ")[1],
+          email: req?.body?.adminEmail,
+          phone: req?.body?.adminPhone,
+          location: req?.body?.location,
+        },
+        {
+          new: true,
+        })
+    }
     const resData = customResponse({
       code: HTTP_CODES.SUCCESS,
-      message: "My Organization Updated Successfully",
-      data: updateOrg
+      message: `${updateOrg?.orgName} is Updated Successfully`,
     });
     return res.status(HTTP_CODES.SUCCESS).send(resData);
 
@@ -232,7 +290,7 @@ const getMyOrgProfile = async (req, res) => {
   try {
     const _id = req.userId;
     const user = await userModel.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const getOrgData = await organizationModel.findById(
       orgId,
       {
@@ -304,9 +362,9 @@ const orgChart = async (req, res) => {
   try {
     const _id = req.userId;
     const user = await User.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const getAdminRoleId = await userType.findOne({ role: ROLES.ADMIN }, { _id:1 });
-    const findOrgAdmin = await User.findOne({ role: getAdminRoleId._id, organization: orgId },
+    const findOrgAdmin = await User.findOne({ role: getAdminRoleId._id, organization: orgId, isAdmin: true },
       {
         _id:1,
         firstName:1,
@@ -342,7 +400,7 @@ const orgChart = async (req, res) => {
         });
         if (findData && findData !== null ){
           const getOkrData = await Okr.find({ owner: findData._id, type: OKR_TYPES.INDIVIDUAL, quarter:currentQuarter, isDeleted:false });
-          const statsData = await getStatsOfOkr(getOkrData, currentQuarter, orgId);
+          const statsData = await getStatsOfOkrWithoutOkrList(getOkrData, currentQuarter, orgId);
           let nested = [];
           if ( findData?.whoReportsMe && findData?.whoReportsMe?.length > 0){
             const res = await getUserData(findData.whoReportsMe);
@@ -366,7 +424,7 @@ const orgChart = async (req, res) => {
     }
     const new_data = await getUserData(findOrgAdmin.whoReportsMe);
     const getOkrData = await Okr.find({ owner: findOrgAdmin._id, type: OKR_TYPES.INDIVIDUAL, quarter:currentQuarter, isDeleted:false });
-    const statsData = await getStatsOfOkr(getOkrData, currentQuarter, orgId);
+    const statsData = await getStatsOfOkrWithoutOkrList(getOkrData, currentQuarter, orgId);
     let data = {
       id: findOrgAdmin._id,
       value: {
@@ -394,211 +452,11 @@ const orgChart = async (req, res) => {
   }
 }
 
-async function getStatsOfOkr(okrData, quarter, orgID){
-  try{
-    let total_okr = 0, total_krs = 0;
-    let obj_status_done = 0,obj_status_onTrack= 0, obj_status_behind = 0, obj_status_atRisk = 0;
-    let kr_status_done = 0,kr_status_onTrack= 0, kr_status_behind = 0, kr_status_atRisk = 0;
-    const getQuarterData = await timePeriod.findOne({
-      _id: quarter,
-      organization: orgID,
-      isDeleted: false,
-    },
-    {
-      _id:1,
-      name:1,
-      startDate:1,
-      endDate:1
-    });
-
-    if (getQuarterData === null){
-      let res = {
-        totalObjective: 0,
-        objectiveDone: 0,
-        objectiveAtRisk: 0,
-        objectiveBehind: 0,
-        objectiveOnTrack: 0,
-        totalKrs : 0,
-        krDone: 0,
-        krAtRisk: 0,
-        krBehind: 0,
-        krOnTrack: 0,
-        overallProgress : 0,
-        overallStatus : "",
-      }
-      return res;
-    }
-      if ( okrData && okrData.length > 0 ){
-          let current_date, current_duration, end_date, expected_kr, start_date, total_duration;
-          start_date = moment(getQuarterData.startDate).format("YYYY-MM-DD");
-          end_date = moment(getQuarterData.endDate).format("YYYY-MM-DD");
-          current_date = moment().format("YYYY-MM-DD");
-          total_duration = moment(end_date).diff(moment(start_date), 'days');
-
-          current_duration = moment(current_date).diff(moment(start_date), 'days');
-          expected_kr = current_duration / total_duration * 100;
-          expected_kr = Math.round(expected_kr);
-
-          function get_status(current, expected) {
-              let v;
-              if (current === 100){
-                  return "done"
-              }
-              else if (expected <= current) {
-
-                  return "onTrack";
-              } else {
-                  if (expected > current) {
-                  v = expected - current;
-
-                  if (v > 15) {
-                      return "atRisk";
-                  } else {
-                      return "behind";
-                  }
-                  }
-              }
-          }
-
-          function get_kr_status(current_value, start_value, target_value) {
-            let current_kr, status;
-            current_kr = ((current_value - start_value) / (target_value - start_value)) * 100;
-            current_kr = Math.round(current_kr);
-            status = get_status(current_kr, expected_kr);
-            if (status === "done"){
-              kr_status_done = kr_status_done + 1;
-            }
-            else if (status === "onTrack"){
-              kr_status_onTrack = kr_status_onTrack + 1;
-            }
-            else if (status === "atRisk"){
-              kr_status_atRisk = kr_status_atRisk + 1;
-            }
-            else if (status === "behind"){
-              kr_status_behind = kr_status_behind + 1;
-            }
-            return [status, current_kr];
-          }
-
-          function get_objective_status(data) {
-            let cur_obj, new_data, status;
-            new_data = [];
-            let kr_data=[]
-            for (let j=0; j<data.length; j++){
-              let data1 = get_kr_status(data[j].currentValue, data[j].start, data[j].target);
-              new_data.push(data1[1]);
-              kr_data.push({
-                krsId : data[j]._id.toString(),
-                keyResult : data[j].keyResult,
-                krProgress : data1[1],
-                status : data1[0] ? data1[0] : '',
-                start: data[j].start,
-                currentValue: data[j].currentValue,
-                target: data[j].target,
-                isBoolean: data[j].isBoolean,
-                unit: data[j].unit,
-                krComments: data[j].comment,
-              })
-              total_krs = total_krs + 1;
-            }
-            cur_obj = sum(new_data) / new_data.length;
-            cur_obj = Math.round(cur_obj);
-            status = get_status(cur_obj, expected_kr);
-            if (status === "done"){
-              obj_status_done = obj_status_done + 1;
-            }
-            else if (status === "onTrack"){
-              obj_status_onTrack = obj_status_onTrack + 1;
-            }
-            else if (status === "atRisk"){
-              obj_status_atRisk = obj_status_atRisk + 1;
-            }
-            else if (status === "behind"){
-              obj_status_behind = obj_status_behind + 1;
-            }
-            return [cur_obj, status, kr_data];
-          }
-
-          function get_overall_status(data) {
-              let cur_overall, new_data, status;
-              let OBJ_ARRAY = [];
-              new_data = [];
-              for (let i = 0; i<data.length; i++) {
-                  let obj_data = get_objective_status(data[i].krs);
-                  let POST_DATA = {
-                      okrObjectiveId : data[i]._id.toString(),
-                      okrObjective : data[i].objective,
-                      okrType: data[i].type,
-                      krs : obj_data[2],
-                      okrProgress: obj_data[0],
-                      okrStatus: obj_data[1] ? obj_data[1] : '',
-                      okrOwner: data[i].owner,
-                      quarter: data[i].quarter,
-                      okrCreatedAt: data[i].createdAt,
-                      okrUpdatedAt: data[i].updatedAt,
-                      okrComments: data[i].comment,
-                  }
-                  OBJ_ARRAY.push(POST_DATA);
-
-                  new_data.push(obj_data[0]);
-                  total_okr = total_okr + 1;
-              }
-              cur_overall = sum(new_data) / new_data.length;
-              cur_overall = Math.round(cur_overall);
-              status = get_status(cur_overall, expected_kr);
-              let res = JSON.stringify({
-                totalObjective: total_okr,
-                objectiveDone: obj_status_done,
-                objectiveAtRisk: obj_status_atRisk,
-                objectiveBehind: obj_status_behind,
-                objectiveOnTrack: obj_status_onTrack,
-                totalKrs : total_krs,
-                krDone: kr_status_done,
-                krAtRisk: kr_status_atRisk,
-                krBehind: kr_status_behind,
-                krOnTrack: kr_status_onTrack,
-                overallProgress : cur_overall,
-                overallStatus : status ? status : '',
-              })
-              return res;
-          }
-
-          const newData = get_overall_status(okrData);
-           let res1 = JSON.parse(newData);
-          logger.customLogger.log('info', `Success with okr's data`);
-          return res1;
-
-      }
-      else if (okrData.length === 0){
-        logger.customLogger.log('info', `Success with no okr's`);
-        let res = {
-          totalObjective: 0,
-          objectiveDone: 0,
-          objectiveAtRisk: 0,
-          objectiveBehind: 0,
-          objectiveOnTrack: 0,
-          totalKrs : 0,
-          krDone: 0,
-          krAtRisk: 0,
-          krBehind: 0,
-          krOnTrack: 0,
-          overallProgress : 0,
-          overallStatus : "",
-        }
-        return res;
-      }
-
-  }
-  catch(error) {
-    logger.customLogger.log('info', `Error - ${error}`);
-  }
-}
-
 const getCompanyDetails = async (req, res) => {
   try {
     const _id = req.userId;
     const user = await userModel.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const getOrgData = await organizationModel.findById(orgId,
       {
         vision:1,
@@ -606,6 +464,8 @@ const getCompanyDetails = async (req, res) => {
         coreValues:1,
         companyBrief:1,
         orgName:1,
+        logo:1,
+        logoUrl:1,
       }
     )
     const resData = customResponse({
@@ -629,7 +489,7 @@ const updateCompanyDetails = async(req, res) => {
   try {
     const _id = req.userId;
     const user = await userModel.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const updateOrgData = await organizationModel.findByIdAndUpdate(orgId,
       {
         vision: req?.body?.vision,
@@ -666,6 +526,211 @@ const updateCompanyDetails = async(req, res) => {
   }
 }
 
+const updateCompanyLogo = async (req, res) => {
+  const userId = req.userId;
+  const getUserData = await User.findById(userId, {organization:1, role:1})
+    .populate('organization', {_id:1})
+    .populate('role', {_id:1, role:1});
+  if (req.file){
+    const arr = req?.file?.originalname.split('.');
+    let len = arr?.length;
+    const ext = arr[len-1];
+    let orgId;
+    if (getUserData.role.role === ROLES.ADMIN){
+      orgId = getUserData?.organization?._id;
+    }
+    if (getUserData.role.role === ROLES.SUPER_ADMIN){
+      orgId = req?.params?.orgid;
+    }
+    const fileName = `${orgId}-${arr[0]}.${ext}`;
+    
+    const blob = fs.readFileSync(req.file.path)
+    const data = {
+      Key: fileName,
+      Body: blob,
+      ContentEncoding: req.file.encoding,
+      ContentType: "image",
+      Bucket: config.AWS_BUCKET_NAME,
+    };
+    const path = __basedir + "/uploads/logo/" + req.file.filename;
+    await unlinkAsync(path);
+
+    s3Client.putObject(data, async function (error, data) {
+      if (error) {
+        const resData = customResponse({
+          code: HTTP_CODES.BAD_REQUEST,
+          message: `Failed to Upload Company Logo.`,
+          err: error,
+        });
+        return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+      } else {
+        const updateInDb = await organizationModel.findByIdAndUpdate(orgId, 
+          {
+            logo: fileName,
+            logoUrl: `${config.AWS_BUCKET_URL}${fileName}`
+          },
+          {
+            new: true,
+          });
+        const resData = customResponse({
+          code: HTTP_CODES.SUCCESS,
+          message: `Company Logo Uploaded Successfully`,
+        });
+        return res.status(HTTP_CODES.SUCCESS).send(resData);
+      }
+    });
+  }else {
+    const resData = customResponse({
+      code: HTTP_CODES.BAD_REQUEST,
+      message: `Image is unable to processed`,
+    });
+    return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+  }
+}
+
+const deleteCompanyLogo = async (req, res) => {
+  const userId = req.userId;
+  const getUserData = await User.findById(userId, {organization:1, role:1})
+    .populate('organization', {_id:1})
+    .populate('role', {_id:1, role:1});
+  const fileName = sanitizer.value(req.params.filename, 'str');
+  if (fileName.length === 0) {
+    const resData = customResponse({
+      code: HTTP_CODES.BAD_REQUEST,
+      message: "Invalid Data. File Name Not Provided",
+      err: {}
+    });
+    return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+  }
+  let orgId;
+  if (getUserData.role.role === ROLES.ADMIN){
+    orgId = getUserData?.organization?._id;
+  }
+  if (getUserData.role.role === ROLES.SUPER_ADMIN){
+    orgId = req?.params?.orgid;
+  }
+  const params = {
+    Key: fileName,
+    Bucket: config.AWS_BUCKET_NAME,
+  };
+  s3Client.deleteObject(params, async(error, data) => {
+    if (error) {
+      logger.customLogger.log('error', error)
+      const resData = customResponse({
+        code: HTTP_CODES.BAD_REQUEST,
+        message: `Failed to delete company logo`,
+        err: error,
+      });
+      return res.status( HTTP_CODES.BAD_REQUEST).send(resData);
+    } else {
+      const updateInDb = await organizationModel.findByIdAndUpdate(orgId, 
+        {
+          logo: '',
+          logoUrl: ''
+        },
+        {
+          new: true,
+        });
+      const resData = customResponse({
+        code: HTTP_CODES.SUCCESS,
+        message: `Successfully Deleted Logo.`,
+      });
+      return res.status(HTTP_CODES.SUCCESS).send(resData);
+    }
+  });
+}
+
+const orgChartListView = async (req, res) => {
+  try {
+    const _id = req.userId;
+    const user = await User.findById(_id);
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
+    const getAdminRoleId = await userType.findOne({ role: ROLES.ADMIN }, { _id:1 });
+    const findOrgAdmin = await User.findOne({ role: getAdminRoleId._id, organization: orgId, isAdmin: true },
+      {
+        _id:1,
+        firstName:1,
+        surname:1,
+        designation:1,
+        whoReportsMe:1,
+        isActive:1,
+        isDeleted:1,
+        avatar:1,
+      });
+    const getCurrentQuarter = await timePeriod.findOne({
+      organization: orgId,
+      isCurrent: true,
+      isLocked: false,
+      isDeleted: false,
+    },
+    {
+      _id:1,
+      name:1,
+    }).sort({ timestamp:-1 });
+    let currentQuarter = getCurrentQuarter?._id ? getCurrentQuarter._id : null;
+
+    async function getUserData(data){
+      let newData = [];
+      for (let i = 0; i<data?.length ; i++){
+        const findData = await User.findOne({_id: String(data[i]), isActive: true, isDeleted: false},
+        {
+          _id:1,
+          firstName:1,
+          surname:1,
+          designation:1,
+          whoReportsMe:1,
+          avatar: 1,
+        });
+        if (findData && findData !== null ){
+          const getOkrData = await Okr.find({ owner: findData._id, type: OKR_TYPES.INDIVIDUAL, quarter:currentQuarter, isDeleted:false });
+          const statsData = await getStatsOfOkrWithoutOkrList(getOkrData, currentQuarter, orgId);
+          let nested = [];
+          if ( findData?.whoReportsMe && findData?.whoReportsMe?.length > 0){
+            const res = await getUserData(findData.whoReportsMe);
+            nested = res;
+          }
+          let Obj = {
+            key: findData?._id,
+            title: `${findData?.firstName? findData?.firstName: ''} ${findData?.surname ? findData?.surname : ''}`,
+            children: nested,
+            designation: findData?.designation,
+            avatar: findData?.avatar,
+            value: statsData ? statsData : [],
+          }
+          newData[i] = Obj;
+        }
+      }
+      return newData;
+    }
+    const new_data = await getUserData(findOrgAdmin.whoReportsMe);
+    const getOkrData = await Okr.find({ owner: findOrgAdmin._id, type: OKR_TYPES.INDIVIDUAL, quarter:currentQuarter, isDeleted:false });
+    const statsData = await getStatsOfOkrWithoutOkrList(getOkrData, currentQuarter, orgId);
+    let data = {
+      key: findOrgAdmin._id,
+      title: `${findOrgAdmin.firstName? findOrgAdmin.firstName: ''} ${findOrgAdmin.surname ? findOrgAdmin.surname : ''}`,
+      children: new_data ? new_data : [],
+      designation: findOrgAdmin?.designation,
+      avatar: findOrgAdmin?.avatar,
+      value: statsData ? statsData : [],
+    }
+
+    const resData = customResponse({
+      code: HTTP_CODES.SUCCESS,
+      message: "Successfully Fetch the Org Chart",
+      data: data
+    });
+    return res.status(HTTP_CODES.SUCCESS).send(resData);
+  } catch (error) {
+    logger.customLogger.log('error', error.stack);
+    const resData = customResponse({
+      code: HTTP_CODES.BAD_REQUEST,
+      message: "Failed to Fetch the Organization Chart",
+      err: {}
+    });
+    return res.status(HTTP_CODES.BAD_REQUEST).send(resData);
+  }
+}
+
 
 module.exports = {
   createOrganizationAccount,
@@ -675,7 +740,9 @@ module.exports = {
   getMyOrgProfile,
   deleteOrg,
   orgChart,
-  getStatsOfOkr,
   getCompanyDetails,
   updateCompanyDetails,
+  updateCompanyLogo,
+  deleteCompanyLogo,
+  orgChartListView,
 };

@@ -18,6 +18,13 @@ const config = {
     LOGO_URL:"",
     PROD_ORIGIN:"",
     SENDGRID_API:"",
+    CRYPTO_SECRET:"",
+    AWS_ACCESS_KEY_ID:"",
+    AWS_SECRET_ACCESS_KEY:"",
+    AWS_DEFAULT_REGION:"",
+    AWS_BUCKET_NAME:'',
+    AWS_API_VERSION:"",
+    AWS_BUCKET_URL:"",
 };
   
 Object.freeze(config);

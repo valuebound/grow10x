@@ -43,9 +43,7 @@ const TimeCycleModal: React.FC<Props> = ({
       }
       await dispatch(getAllTimePeriodsAsync());
       onClose();
-    } catch (error) {
-      console.log("error creating timeperiod", error);
-    }
+    } catch (error) {}
   };
 
   return (
@@ -58,7 +56,7 @@ const TimeCycleModal: React.FC<Props> = ({
         footer={null}
       >
         <FormBuilder
-          width={750}
+          width={"100%"}
           name="TimePeriod"
           btnBlock={false}
           btnOffest={21}

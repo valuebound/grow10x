@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const { ORG_TYPES, ORG_TYPE_ARRAY, WEEKDAYS_ARRAY, WEEKDAYS, TIMEZONES } = require("../../utility/constants");
 const moment = require('moment');
 const { env } = require('../../config/environment');
@@ -129,7 +129,13 @@ const organizationSchema =  new mongoose.Schema({
   },
   companyBrief: {
     type: String,
-  }
+  },
+  logo: {
+    type: String,
+  },
+  logoUrl: {
+    type: String,
+  },
 });
 
 /**
@@ -138,7 +144,8 @@ const organizationSchema =  new mongoose.Schema({
 organizationSchema.pre("save", async function(next){
   if(this.password){
     const saltOrRound = parseInt(config.BCRYPT_SALTORROUND);
-    const hashedPassword = await bcrypt.hash(this.password, saltOrRound);
+    const salt = await bcrypt.genSalt(saltOrRound);
+    const hashedPassword = await bcrypt.hash(this.password, salt);
     this.password = hashedPassword;
   }
   next();

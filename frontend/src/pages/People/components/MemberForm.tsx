@@ -43,9 +43,7 @@ const MemberForm: React.FC<MemberFormProps> = ({
         onClose();
       }
       setConfirmLoading(false);
-    } catch (error) {
-      console.log("Error Adding Members", error);
-    }
+    } catch (error) {}
   };
 
   return (

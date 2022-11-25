@@ -4,14 +4,13 @@ const { HTTP_CODES, ERROR_MESSAGES, ROLES } = require("../../utility/constants")
 const { customResponse } = require("../../utility/helper");
 const { addTimePeriodSchema } = require("./schema");
 const logger = require("../../utility/logger");
-const userType = require("../userType/model");
 const sanitizer = require("sanitize")();
 
 const createTimePeriod = async (req, res) => {
   try {
     const _id = req.userId;
     const user = await User.findById(_id);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     /**
      * Joi Validation
      */
@@ -67,7 +66,7 @@ const updateTimePeriod = async (req, res) => {
   try {
     const userid = req.userId;
     const user = await User.findById(userid);
-    const orgId = user.organization;
+    const orgId = req?.query?.orgid ? req?.query?.orgid : user.organization;
     const _id = sanitizer.value(req.params.timeperiodid, 'str');
     const mongoResult = await timePeriodModel.findById(_id);
     if (mongoResult.isDeleted === true){
@@ -176,9 +175,10 @@ const deleteTimePeriod = async (req, res) => {
 
 const getAllTimePeriod = async (req, res) => {
   try {
+    const paramOrgId = req?.query?.orgid;
     const _id = req.userId;
     const user = await User.findById(_id);
-    const orgId = user.organization;
+    const orgId = paramOrgId ? paramOrgId : user.organization;
 
     const mongoResult = await timePeriodModel.find({ organization:orgId ,isDeleted:false},{__v:0})
       .populate("createdBy",{firstName:1, surname:1})

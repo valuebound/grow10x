@@ -82,14 +82,15 @@ export const loginSlice = createSlice({
       .addCase(logOutAsync.fulfilled, (state, action) => {
         state.status = "idle";
         state.error = null;
-        localStorage.removeItem(STORAGE_KEY_CONSTANT);
-        localStorage.removeItem(USER_KEY_CONSTANT);
-        window.location.replace('/login');
+        // localStorage.removeItem(STORAGE_KEY_CONSTANT);
+        // localStorage.removeItem(USER_KEY_CONSTANT);
+        localStorage.clear();
+        window.location.replace("/login");
       })
       .addCase(logOutAsync.rejected, (state, action) => {
-        if(action.payload === "User Not Found! Invalid Token"){
+        if (action.payload === "User Not Found! Invalid Token") {
           localStorage.clear();
-          window.location.replace('/login')
+          window.location.replace("/login");
         }
         state.status = "failed";
       });
